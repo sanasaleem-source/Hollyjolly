@@ -36,10 +36,3 @@ class Director:
         Converts the ProductionPlan into sequential pipeline tasks.
         """
         return TaskPlanner.plan_tasks(production_plan)
-List = List
-Dict = Dict
-Any = Any
-StoryParser = StoryParser
-ProductionPlan = ProductionPlan
-TaskPlanner = TaskPlanner
-ContinuityAdvisor = ContinuityAdvisor

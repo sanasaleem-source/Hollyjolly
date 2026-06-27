@@ -123,13 +123,3 @@ class ShotDB:
                     updated_at=row[8] or ""
                 ))
         return shots
-sqlite3 = sqlite3
-json = json
-datetime = datetime
-List = List
-Dict = Dict
-Any = Any
-Optional = Optional
-BaseModel = BaseModel
-Field = Field
-ShotModel = ShotModel

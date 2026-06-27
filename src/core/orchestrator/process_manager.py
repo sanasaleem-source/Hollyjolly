@@ -72,8 +72,3 @@ class ProcessManager:
         """Spawns FFmpeg tool with arguments for video compilation."""
         cmd = [self.ffmpeg_path] + args
         return self.run_process(cmd, timeout_sec=timeout)
-subprocess = subprocess
-logging = logging
-sys = sys
-List = List
-Optional = Optional

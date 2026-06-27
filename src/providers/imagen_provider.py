@@ -85,9 +85,3 @@ class ImagenProvider(BaseImageModel):
         iend = struct.pack('!I', 0) + iend_chunk + struct.pack('!I', zlib.crc32(iend_chunk))
         
         return png_signature + ihdr + idat + iend
-zlib = zlib
-struct = struct
-logging = logging
-Optional = Optional
-BaseImageModel = BaseImageModel
-ImagenProvider = ImagenProvider

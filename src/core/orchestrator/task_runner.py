@@ -41,16 +41,71 @@ class TaskRunner:
         """Resolves characters, objects, and props present in the task metadata."""
         characters = task["data"].get("characters", [])
         objects = task["data"].get("objects", [])
+        lighting = task["data"].get("lighting", "Standard")
         
         resolved_paths = {}
+        
+        # Import models dynamically to avoid circular references
+        from src.core.world_state.character_db import CharacterModel
+        from src.core.world_state.object_db import ObjectModel
+        from src.core.world_state.world_db import WorldEventModel
         
         for name in characters:
             path = self.asset_manager.resolve_character_asset(name, f"Character named {name}")
             resolved_paths[name] = path
             
+            # Save character record to world state if not existing
+            char_record = self.world_state.get_character(name)
+            if not char_record:
+                char_model = CharacterModel(
+                    name=name,
+                    appearance={"style": "Cinematic", "description": f"Visual identity of {name}"},
+                    clothing={"style": "Standard"},
+                    injuries={"status": "None"},
+                    relationships={},
+                    history=f"First appeared in Shot {shot_model.shot_id}",
+                    last_seen_shot_id=shot_model.shot_id
+                )
+                self.world_state.save_character(char_model)
+            else:
+                char_record.last_seen_shot_id = shot_model.shot_id
+                self.world_state.save_character(char_record)
+            
         for name in objects:
             path = self.asset_manager.resolve_object_asset(name, f"Prop named {name}")
             resolved_paths[name] = path
+            
+            # Save object record to world state if not existing
+            obj_record = self.world_state.get_object(name)
+            if not obj_record:
+                obj_model = ObjectModel(
+                    name=name,
+                    condition="Intact",
+                    location=f"Shot {shot_model.shot_id}",
+                    owner="None",
+                    version=1,
+                    history=f"Registered in Shot {shot_model.shot_id}"
+                )
+                self.world_state.save_object(obj_model)
+            else:
+                obj_record.location = f"Shot {shot_model.shot_id}"
+                self.world_state.save_object(obj_record)
+                
+        # Save or update World Event setting for the environment
+        if not self.world_state.get_world_event(shot_model.shot_id):
+            # Try to infer time of day or weather from shot plan/lighting
+            time_of_day = "Night" if "low-key" in lighting.lower() or "dark" in lighting.lower() else "Day"
+            weather = "Rainy" if "rain" in lighting.lower() else "Clear"
+            
+            event_model = WorldEventModel(
+                shot_id=shot_model.shot_id,
+                time_of_day=time_of_day,
+                weather=weather,
+                lighting=lighting,
+                damage_state={},
+                events={"description": f"Settings established for Shot {shot_model.shot_id}"}
+            )
+            self.world_state.save_world_event(event_model)
             
         # Record resolved asset versions onto the shot state
         shot_model.asset_versions = resolved_paths
@@ -96,6 +151,3 @@ class TaskRunner:
             "status": "success" if validation_report["passed"] else "failed",
             "report": validation_report
         }
-logging = logging
-Dict = Dict
-Any = Any

@@ -11,6 +11,3 @@ class BaseVisionModel(ABC):
     def analyze(self, image_bytes: bytes, question: str) -> str:
         """Analyzes an image and answers questions about visual context."""
         pass
-ABC = ABC
-abstractmethod = abstractmethod
-BaseVisionModel = BaseVisionModel

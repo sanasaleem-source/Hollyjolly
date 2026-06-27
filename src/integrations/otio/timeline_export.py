@@ -43,7 +43,3 @@ class OTIOExporter:
                 for shot in shots:
                     f.write(f"CLIP {shot.get('shot_id')} DURATION {shot.get('duration_seconds')}s\n")
             return output_filepath
-List = List
-Dict = Dict
-Any = Any
-OTIOExporter = OTIOExporter

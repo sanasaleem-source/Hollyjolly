@@ -79,10 +79,3 @@ class WorldStateManager:
     def get_all_shots(self) -> List[ShotModel]:
         """Returns all shots in sequence."""
         return self.shot_db.get_all_shots()
-List = List
-Optional = Optional
-Path = Path
-CharacterModel = CharacterModel
-ObjectModel = ObjectModel
-WorldEventModel = WorldEventModel
-ShotModel = ShotModel

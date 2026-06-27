@@ -58,6 +58,3 @@ class ContinuityAdvisor:
             }
             
         return json.dumps(context_dict, indent=2)
-json = json
-Dict = Dict
-Any = Any

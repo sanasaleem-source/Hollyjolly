@@ -67,7 +67,3 @@ def Scope "Character_{char_name}" (
             f.write(usda_content)
             
         return filepath
-Path = Path
-Dict = Dict
-Any = Any
-USDWriter = USDWriter

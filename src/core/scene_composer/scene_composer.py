@@ -55,10 +55,3 @@ class SceneComposer:
             "usda_path": usda_path,
             "scene_json_path": json_path
         }
-json = json
-Path = Path
-Dict = Dict
-Any = Any
-ShotBuilder = ShotBuilder
-USDWriter = USDWriter
-SceneComposer = SceneComposer

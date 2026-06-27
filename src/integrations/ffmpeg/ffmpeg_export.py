@@ -30,7 +30,3 @@ class FFmpegExporter:
         
         # self.pm.run_ffmpeg(args)
         return True
-List = List
-Dict = Dict
-Any = Any
-FFmpegExporter = FFmpegExporter

@@ -67,8 +67,3 @@ class TaskPlanner:
             })
             
         return tasks
-List = List
-Dict = Dict
-Any = Any
-ProductionPlan = ProductionPlan
-ShotPlan = ShotPlan

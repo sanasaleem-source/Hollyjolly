@@ -117,13 +117,3 @@ class WorldDB:
                     updated_at=row[7] or ""
                 ))
         return events
-sqlite3 = sqlite3
-json = json
-datetime = datetime
-List = List
-Dict = Dict
-Any = Any
-Optional = Optional
-BaseModel = BaseModel
-Field = Field
-WorldEventModel = WorldEventModel

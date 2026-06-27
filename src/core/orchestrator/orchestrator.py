@@ -116,13 +116,3 @@ class PipelineOrchestrator:
             
         self.logger.error(f"Repair loop exhausted. Shot {shot_id} remains failed.")
         return False
-logging = logging
-List = List
-Dict = Dict
-Any = Any
-Optional = Optional
-WorldStateManager = WorldStateManager
-ShotModel = ShotModel
-ProcessManager = ProcessManager
-TaskRunner = TaskRunner
-PipelineOrchestrator = PipelineOrchestrator

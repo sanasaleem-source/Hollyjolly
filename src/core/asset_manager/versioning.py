@@ -55,8 +55,3 @@ class AssetVersioner:
             
         latest_ver = max(versions)
         return latest_ver, base_dir / f"v{latest_ver}"
-json = json
-Path = Path
-Dict = Dict
-Any = Any
-Tuple = Tuple

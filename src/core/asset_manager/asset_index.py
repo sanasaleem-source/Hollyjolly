@@ -83,8 +83,3 @@ class AssetIndex:
                     "tags": row[4] or ""
                 })
         return assets
-sqlite3 = sqlite3
-Dict = Dict
-Any = Any
-List = List
-Optional = Optional

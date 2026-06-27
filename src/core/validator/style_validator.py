@@ -14,6 +14,3 @@ class StyleValidator(BaseValidator):
         # In a real environment, loads rendered frames and style blueprints
         # Sends them to Gemini Vision
         return ValidationResult(passed=True, failures=[], severity="none")
-BaseValidator = BaseValidator
-ValidationResult = ValidationResult
-StyleValidator = StyleValidator

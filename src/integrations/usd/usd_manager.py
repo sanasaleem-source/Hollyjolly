@@ -10,4 +10,3 @@ class USDManager:
     def inspect_stage(filepath: str) -> dict:
         """Loads and parses metadata keys from a .usd / .usda file."""
         return {"file": filepath, "status": "valid"}
-USDManager = USDManager

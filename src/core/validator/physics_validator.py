@@ -12,6 +12,3 @@ class PhysicsValidator(BaseValidator):
     def validate(self, shot_data: Any, world_state: Any) -> ValidationResult:
         # Evaluates physical placements of objects/characters
         return ValidationResult(passed=True, failures=[], severity="none")
-BaseValidator = BaseValidator
-ValidationResult = ValidationResult
-PhysicsValidator = PhysicsValidator

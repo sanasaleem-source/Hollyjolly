@@ -19,6 +19,3 @@ class GodotBridge:
         # Execute headless subprocess call
         # self.pm.run_godot_headless("./godot/render_scene.gd", output_directory)
         return True
-json = json
-Path = Path
-GodotBridge = GodotBridge

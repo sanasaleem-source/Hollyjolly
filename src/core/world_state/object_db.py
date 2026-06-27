@@ -109,9 +109,3 @@ class ObjectDB:
                     updated_at=row[6] or ""
                 ))
         return objects
-sqlite3 = sqlite3
-datetime = datetime
-List = List
-Optional = Optional
-BaseModel = BaseModel
-ObjectModel = ObjectModel

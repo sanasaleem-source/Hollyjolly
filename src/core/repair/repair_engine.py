@@ -62,7 +62,3 @@ class RepairEngine:
     def _repair_general_fallback(self, shot_model: Any, detail: str) -> None:
         """Fallback modifier."""
         pass
-logging = logging
-Dict = Dict
-Any = Any
-RepairEngine = RepairEngine

@@ -61,6 +61,3 @@ class ShotBuilder:
                 "light_color": "(1.0, 1.0, 1.0)",
                 "light_intensity": 1.0
             }
-Dict = Dict
-Any = Any
-ShotBuilder = ShotBuilder

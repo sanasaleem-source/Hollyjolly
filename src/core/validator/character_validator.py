@@ -46,6 +46,3 @@ class CharacterValidator(BaseValidator):
             return ValidationResult(passed=True, failures=[], severity="none")
         except Exception as e:
             return ValidationResult(passed=False, failures=[f"Character validation error: {e}"], severity="warning")
-BaseValidator = BaseValidator
-ValidationResult = ValidationResult
-CharacterValidator = CharacterValidator

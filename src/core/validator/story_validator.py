@@ -31,6 +31,3 @@ class StoryValidator(BaseValidator):
             return ValidationResult(passed=True, failures=[], severity="none")
         except Exception as e:
             return ValidationResult(passed=False, failures=[f"Story continuity check failed: {e}"], severity="warning")
-BaseValidator = BaseValidator
-ValidationResult = ValidationResult
-StoryValidator = StoryValidator

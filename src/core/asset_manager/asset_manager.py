@@ -132,10 +132,3 @@ class AssetManager:
         self.index.register_asset(name, asset_type, 1, str(image_path), tags=description)
         
         return str(image_path)
-Path = Path
-Dict = Dict
-Any = Any
-List = List
-Optional = Optional
-AssetVersioner = AssetVersioner
-AssetIndex = AssetIndex

@@ -62,7 +62,3 @@ class StoryParser:
         except Exception as e:
             # Fallback or raising error for orchestrator to handle
             raise ValueError(f"Failed to validate production plan JSON: {e}\nRaw output: {raw_response}")
-BaseModel = BaseModel
-Field = Field
-List = List
-Optional = Optional

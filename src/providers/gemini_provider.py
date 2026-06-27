@@ -127,9 +127,3 @@ class GeminiProvider(BaseLLM, BaseVisionModel):
     }}
   ]
 }}"""
-time = time
-logging = logging
-Optional = Optional
-BaseLLM = BaseLLM
-BaseVisionModel = BaseVisionModel
-GeminiProvider = GeminiProvider

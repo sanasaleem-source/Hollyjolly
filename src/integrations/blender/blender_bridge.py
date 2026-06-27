@@ -13,4 +13,3 @@ class BlenderBridge:
         """Triggers a background process in Blender to rig a mesh character asset."""
         # self.pm.run_blender_headless(rig_script)
         return mesh_filepath
-BlenderBridge = BlenderBridge

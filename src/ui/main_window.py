@@ -62,14 +62,8 @@ class PipelineWorker(QThread):
             
             self.progress.emit(f"Orchestrator: Scheduled {len(plan.shots)} shots for asset, USD, and QC processing.")
             
-            # Prepare task schedule matching plan
-            tasks = []
-            for shot in plan.shots:
-                tasks.append({
-                    "shot_id": shot.shot_id,
-                    "scene_id": shot.scene_id,
-                    "tasks": ["asset_generation", "scene_composition", "scene_rendering", "shot_validation"]
-                })
+            # Prepare task schedule matching plan using Director
+            tasks = self.director.create_task_schedule(plan)
                 
             self.orchestrator.load_task_schedule(tasks)
             
@@ -100,9 +94,9 @@ class MainWindow(QMainWindow):
         """Initializes all specialist providers and orchestrators."""
         self.ai_provider = GeminiProvider(self.config)
         self.image_provider = ImagenProvider(self.config)
-        self.world_state = WorldStateManager()
+        self.world_state = WorldStateManager(self.config)
         
-        self.director = Director(self.config, self.ai_provider, self.world_state)
+        self.director = Director(self.ai_provider, self.world_state)
         self.asset_manager = AssetManager(self.config, self.image_provider)
         self.scene_composer = SceneComposer(self.config)
         self.validator_manager = ValidatorManager(self.ai_provider)
@@ -255,10 +249,3 @@ class MainWindow(QMainWindow):
         self.asset_browser.refresh_assets(self.world_state)
         self.world_viewer.refresh_state(self.world_state)
         self.timeline.refresh_timeline(self.world_state)
-
-
-logging = logging
-Dict = Dict
-Any = Any
-MainWindow = MainWindow
-

@@ -11,6 +11,3 @@ class BaseLLM(ABC):
     def generate(self, system_prompt: str, user_prompt: str) -> str:
         """Generates raw text from model context."""
         pass
-ABC = ABC
-abstractmethod = abstractmethod
-BaseLLM = BaseLLM

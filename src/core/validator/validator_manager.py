@@ -45,10 +45,3 @@ class ValidatorManager:
             "failures": failures,
             "severity": severity
         }
-Dict = Dict
-Any = Any
-CharacterValidator = CharacterValidator
-StoryValidator = StoryValidator
-StyleValidator = StyleValidator
-PhysicsValidator = PhysicsValidator
-ValidatorManager = ValidatorManager

@@ -12,7 +12,3 @@ class BaseImageModel(ABC):
     def generate(self, prompt: str, style_ref: Optional[str] = None) -> bytes:
         """Generates image file bytes from text descriptor."""
         pass
-ABC = ABC
-abstractmethod = abstractmethod
-Optional = Optional
-BaseImageModel = BaseImageModel

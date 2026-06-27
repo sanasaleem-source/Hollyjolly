@@ -24,6 +24,3 @@ class FrameCollector:
                 frames.append(str(p))
                 
         return sorted(frames)
-Path = Path
-List = List
-FrameCollector = FrameCollector
