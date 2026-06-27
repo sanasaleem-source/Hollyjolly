@@ -4,6 +4,7 @@ Validates shot sequence action and dialogue integrity against historic plot deve
 and world events.
 """
 
+from typing import Any
 from src.core.validator.base_validator import BaseValidator, ValidationResult
 
 class StoryValidator(BaseValidator):

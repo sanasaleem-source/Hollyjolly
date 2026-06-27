@@ -10,11 +10,12 @@ from typing import Dict, Any
 class TaskRunner:
     """Invokes core sub-systems corresponding to the requested task type."""
     
-    def __init__(self, asset_manager, scene_composer, process_manager, validator_manager) -> None:
+    def __init__(self, asset_manager, scene_composer, process_manager, validator_manager, world_state) -> None:
         self.asset_manager = asset_manager
         self.scene_composer = scene_composer
         self.process_manager = process_manager
         self.validator_manager = validator_manager
+        self.world_state = world_state
         self.logger = logging.getLogger("TaskRunner")
 
     def execute_task(self, task: Dict[str, Any], shot_model: Any) -> Dict[str, Any]:
@@ -69,6 +70,17 @@ class TaskRunner:
             raise FileNotFoundError(f"No composite scene file found for shot {shot_model.shot_id}")
             
         output_dir = f"./storage/cache/{shot_model.shot_id}"
+        
+        # Procedurally generate a render frame for UI feedback
+        import os
+        os.makedirs(output_dir, exist_ok=True)
+        frame_file = os.path.join(output_dir, "frame_0000.png")
+        if not os.path.exists(frame_file):
+            prompt = f"Scene rendering of {shot_model.shot_id} under scene {shot_model.scene_id}."
+            img_bytes = self.asset_manager.image_provider.generate(prompt)
+            with open(frame_file, "wb") as f:
+                f.write(img_bytes)
+                
         # Trigger Process Manager for Godot headless
         # (Godot script runs in a real pipeline)
         # self.process_manager.run_godot_headless("./godot/render_scene.gd", output_dir)
@@ -77,7 +89,7 @@ class TaskRunner:
 
     def _run_shot_validation(self, task: Dict[str, Any], shot_model: Any) -> Dict[str, Any]:
         """Fires sequence of character, story, style, and physics checks."""
-        validation_report = self.validator_manager.run_all_validators(shot_model)
+        validation_report = self.validator_manager.run_all_validators(shot_model, self.world_state)
         shot_model.validation_result = validation_report
         
         return {

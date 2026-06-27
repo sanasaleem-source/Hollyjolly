@@ -4,6 +4,7 @@ Uses Gemini Vision to check color tones, color palettes, noise, and visual style
 across frames for consistency.
 """
 
+from typing import Any
 from src.core.validator.base_validator import BaseValidator, ValidationResult
 
 class StyleValidator(BaseValidator):

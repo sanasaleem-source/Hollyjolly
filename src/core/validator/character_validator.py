@@ -4,6 +4,7 @@ Cross-checks rendered shot frames against registered character traits to safegua
 and physical features continuity.
 """
 
+from typing import Any
 from src.core.validator.base_validator import BaseValidator, ValidationResult
 
 class CharacterValidator(BaseValidator):

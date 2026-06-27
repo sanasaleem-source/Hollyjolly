@@ -3,6 +3,7 @@ Physics Validator Module
 Audits frame images to catch spatial clips, levitation, or broken gravity configurations.
 """
 
+from typing import Any
 from src.core.validator.base_validator import BaseValidator, ValidationResult
 
 class PhysicsValidator(BaseValidator):

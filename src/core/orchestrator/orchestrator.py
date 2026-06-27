@@ -21,7 +21,7 @@ class PipelineOrchestrator:
         
         # Spawn dependencies
         self.process_manager = ProcessManager(config)
-        self.task_runner = TaskRunner(asset_manager, scene_composer, self.process_manager, validator_manager)
+        self.task_runner = TaskRunner(asset_manager, scene_composer, self.process_manager, validator_manager, self.world_state)
         
         self.max_repairs = config.get("max_repair_attempts", 3)
         self.task_queue: List[Dict[str, Any]] = []
@@ -103,7 +103,7 @@ class PipelineOrchestrator:
             
             # 2. Re-run render and validation
             # (Godot render mock in Phase 1)
-            re_validation = self.task_runner.validator_manager.run_all_validators(shot_model)
+            re_validation = self.task_runner.validator_manager.run_all_validators(shot_model, self.world_state)
             shot_model.validation_result = re_validation
             self.world_state.save_shot(shot_model)
             

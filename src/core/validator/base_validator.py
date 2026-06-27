@@ -5,7 +5,7 @@ Defines the abstract interface and standard response schema for all custom Valid
 
 from abc import ABC, abstractmethod
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Any
 
 class ValidationResult(BaseModel):
     """Encapsulates validation passes, failures, and relative severity tags."""
