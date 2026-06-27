@@ -1,0 +1,14 @@
+# AI Production Studio Configuration File
+llm_provider: "gemini"
+image_provider: "imagen"
+gemini_api_key: "GEMINI_API_KEY_HERE"
+gemini_model: "gemini-1.5-pro"
+godot_path: "/path/to/godot"
+blender_path: "/path/to/blender"
+ffmpeg_path: "./bin/ffmpeg"
+storage_path: "./storage"
+max_repair_attempts: 3
+render_timeout_seconds: 300
+logging:
+  level: "INFO"
+  file: "./storage/logs/studio.log"
