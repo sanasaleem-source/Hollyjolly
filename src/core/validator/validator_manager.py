@@ -1,47 +1,42 @@
 """
-Validator Manager Module
-Aggregates all validators and exposes a single API to audit rendered shot data.
+Validator Manager — runs all validators in sequence for a shot.
 """
-
-from typing import Dict, Any
+import logging
 from src.core.validator.character_validator import CharacterValidator
 from src.core.validator.story_validator import StoryValidator
 from src.core.validator.style_validator import StyleValidator
 from src.core.validator.physics_validator import PhysicsValidator
+from src.core.validator.base_validator import ValidationResult
+
+logger = logging.getLogger(__name__)
+
 
 class ValidatorManager:
-    """Manages sequential trigger of style, physics, story, and actor validations."""
-    
-    def __init__(self, ai_provider) -> None:
+    """Runs all validators in sequence. Returns combined result."""
+
+    def __init__(self, llm_provider, vision_provider) -> None:
         self.validators = [
-            CharacterValidator(ai_provider),
-            StoryValidator(ai_provider),
-            StyleValidator(ai_provider),
-            PhysicsValidator(ai_provider)
+            ("character", CharacterValidator(vision_provider)),
+            ("story",     StoryValidator(llm_provider)),
+            ("style",     StyleValidator(vision_provider)),
+            ("physics",   PhysicsValidator(vision_provider)),
         ]
 
-    def run_all_validators(self, shot_data: Any, world_state: Any) -> Dict[str, Any]:
+    def validate_shot(self, shot_data: dict, world_state) -> dict:
         """
-        Executes checking workflow. Accumulates failures across components.
+        Run all validators. Return dict of {validator_name: ValidationResult}.
         """
-        passed = True
-        failures = []
-        severity = "none"
-        
-        for validator in self.validators:
-            res = validator.validate(shot_data, world_state)
-            if not res.passed:
-                passed = False
-                failures.extend(res.failures)
-                if res.severity == "critical":
-                    severity = "critical"
-                elif res.severity == "warning" and severity != "critical":
-                    severity = "warning"
-                elif severity == "none":
-                    severity = res.severity
-                    
-        return {
-            "passed": passed,
-            "failures": failures,
-            "severity": severity
-        }
+        results = {}
+        for name, validator in self.validators:
+            logger.info(f"Running {name} validator for shot {shot_data.get('shot_id')}")
+            result = validator.validate(shot_data, world_state)
+            results[name] = result
+            if not result.passed:
+                logger.warning(f"{name} validator FAILED: {result.failures}")
+        return results
+
+    def all_passed(self, results: dict) -> bool:
+        return all(r.passed for r in results.values())
+
+    def get_failures(self, results: dict) -> dict:
+        return {k: v for k, v in results.items() if not v.passed}
