@@ -1,120 +1,84 @@
 """
-Preview Player Widget
-Media play-head player mapping composite frames or compiled video outputs.
+Preview Player — plays the final assembled video output.
 """
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QSlider
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QPixmap
-import os
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayout
+from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtGui import QFont
 
-class PreviewPlayerWidget(QWidget):
-    """
-    Preview Player Widget
-    Media play-head player mapping composite frames or compiled video outputs.
-    """
-    def __init__(self, parent=None) -> None:
-        super().__init__(parent)
-        self.active_shot_id = None
-        self._init_ui()
-        
-    def _init_ui(self) -> None:
+STYLE = """
+QWidget { background: #0d0f14; border-bottom: 1px solid #1e2330; }
+QLabel#placeholder {
+    color: #2a2e3e; font-size: 13px;
+    border: 2px dashed #1e2330; border-radius: 8px;
+}
+QPushButton {
+    background: #3ecf8e; color: #0a0c10; border: none;
+    border-radius: 6px; padding: 8px 20px; font-weight: bold; font-size: 12px;
+}
+QPushButton:hover { background: #4edfae; }
+QPushButton#export_btn {
+    background: #5b6af5;
+    color: white;
+}
+QPushButton#export_btn:hover { background: #6b7aff; }
+"""
+
+
+class PreviewPlayer(QWidget):
+    """Video preview area with export button."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.setStyleSheet(STYLE)
+        self.video_path = ""
+        self._build()
+
+    def _build(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(10)
-        
-        # Title
-        self.title_label = QLabel("Production Preview Monitor")
-        self.title_label.setStyleSheet("font-weight: bold; font-size: 14px; color: #ffffff;")
-        layout.addWidget(self.title_label)
-        
-        # High-res monitor frame (16:9 aspect ratio placeholder)
-        self.monitor = QLabel()
-        self.monitor.setMinimumHeight(240)
-        self.monitor.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.monitor.setStyleSheet("""
-            QLabel {
-                background-color: #000000;
-                border: 1px solid #333333;
-                border-radius: 6px;
-                color: #888888;
-                font-size: 14px;
-                font-family: 'JetBrains Mono', monospace;
-            }
-        """)
-        self.monitor.setText("SELECT A SHOT TO PREVIEW RENDER")
-        layout.addWidget(self.monitor)
-        
-        # Media controls layout
-        controls_layout = QHBoxLayout()
-        controls_layout.setSpacing(10)
-        
-        self.btn_play = QPushButton("◀ ▶ Play Sequence")
-        self.btn_play.setStyleSheet("""
-            QPushButton {
-                background-color: #2b2b2b;
-                color: #ffffff;
-                font-weight: bold;
-                font-size: 11px;
-                border: 1px solid #444444;
-                border-radius: 4px;
-                padding: 6px 12px;
-            }
-            QPushButton:hover { background-color: #383838; }
-        """)
-        controls_layout.addWidget(self.btn_play)
-        
-        # Slider for timeline scrubber
-        self.slider = QSlider(Qt.Orientation.Horizontal)
-        self.slider.setRange(0, 100)
-        self.slider.setStyleSheet("""
-            QSlider::groove:horizontal {
-                height: 4px;
-                background: #444444;
-                border-radius: 2px;
-            }
-            QSlider::handle:horizontal {
-                background: #007acc;
-                width: 12px;
-                margin-top: -4px;
-                margin-bottom: -4px;
-                border-radius: 6px;
-            }
-        """)
-        controls_layout.addWidget(self.slider)
-        
-        self.time_label = QLabel("00:00 / 00:00")
-        self.time_label.setStyleSheet("color: #888888; font-size: 11px; font-family: 'JetBrains Mono', monospace;")
-        controls_layout.addWidget(self.time_label)
-        
-        layout.addLayout(controls_layout)
-        
-    def load_shot_preview(self, shot_id: str) -> None:
-        """Loads and scales the selected shot's rendered frame image."""
-        self.active_shot_id = shot_id
-        self.title_label.setText(f"Preview Monitor - Active: {shot_id.upper()}")
-        
-        frame_file = f"./storage/cache/{shot_id}/frame_0000.png"
-        
-        # Look for fallback PNGs in cache folder if frame_0000 is not directly there
-        if not os.path.exists(frame_file):
-            cache_dir = f"./storage/cache/{shot_id}"
-            if os.path.exists(cache_dir):
-                files = [f for f in os.listdir(cache_dir) if f.endswith(".png")]
-                if files:
-                    frame_file = os.path.join(cache_dir, files[0])
-                    
-        if os.path.exists(frame_file):
-            pixmap = QPixmap(frame_file)
-            if not pixmap.isNull():
-                # Scale nicely preserving aspect ratio
-                scaled_pixmap = pixmap.scaled(self.monitor.width(), self.monitor.height(), 
-                                              Qt.AspectRatioMode.KeepAspectRatio, 
-                                              Qt.TransformationMode.SmoothTransformation)
-                self.monitor.setPixmap(scaled_pixmap)
-                self.monitor.setStyleSheet("background-color: #000000; border: 1px solid #333333; border-radius: 6px;")
-            else:
-                self.monitor.setText(f"Corrupted render frame file found for {shot_id.upper()}")
-        else:
-            self.monitor.setText(f"NO RENDER FRAME FILE FOUND FOR {shot_id.upper()}\n({frame_file})")
-            self.monitor.setStyleSheet("background-color: #111111; color: #666666; border: 1px solid #333333; border-radius: 6px;")
+        layout.setContentsMargins(12, 12, 12, 8)
+        layout.setSpacing(8)
 
+        # Preview area
+        self.placeholder = QLabel("Preview will appear here after generation")
+        self.placeholder.setObjectName("placeholder")
+        self.placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.placeholder.setMinimumHeight(200)
+        layout.addWidget(self.placeholder, stretch=1)
+
+        # Controls
+        controls = QHBoxLayout()
+
+        try:
+            from PyQt6.QtMultimediaWidgets import QVideoWidget
+            from PyQt6.QtMultimedia import QMediaPlayer
+            self.player = QMediaPlayer()
+            self.video_widget = QVideoWidget()
+            self.player.setVideoOutput(self.video_widget)
+            layout.addWidget(self.video_widget, stretch=1)
+            self.video_widget.hide()
+
+            self.play_btn = QPushButton("▶ Play")
+            self.play_btn.clicked.connect(self.player.play)
+            controls.addWidget(self.play_btn)
+        except ImportError:
+            self.player = None
+            lbl = QLabel("Install PyQt6-Multimedia for video preview")
+            lbl.setStyleSheet("color: #6b7280; font-size: 11px;")
+            controls.addWidget(lbl)
+
+        controls.addStretch()
+
+        self.export_btn = QPushButton("Export Video")
+        self.export_btn.setObjectName("export_btn")
+        controls.addWidget(self.export_btn)
+
+        layout.addLayout(controls)
+
+    def load(self, video_path: str) -> None:
+        """Load and show a video file."""
+        self.video_path = video_path
+        if self.player:
+            self.player.setSource(QUrl.fromLocalFile(video_path))
+            self.placeholder.hide()
+            self.video_widget.show()
+            self.player.play()
