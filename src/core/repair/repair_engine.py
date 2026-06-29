@@ -18,10 +18,11 @@ logger = logging.getLogger(__name__)
 class RepairEngine:
     """Targeted repair logic for character, story, style, and physics failures."""
 
-    def __init__(self, asset_manager, scene_composer, director) -> None:
+    def __init__(self, asset_manager, scene_composer, director, world_state=None) -> None:
         self.asset_manager  = asset_manager
         self.scene_composer = scene_composer
         self.director       = director
+        self.world_state    = world_state  # injected after build_pipeline
 
     def repair_shot(self, shot_model: Any, failure_report: Dict[str, Any]) -> None:
         """Triage failures and route each to the correct repair handler."""
@@ -45,19 +46,13 @@ class RepairEngine:
 
     def _repair_character(self, shot_model: Any, detail: str) -> None:
         logger.info("Repairing character failure: %s", detail)
-        for char_name, _ in shot_model.asset_versions.items():
+        for char_name in list(shot_model.asset_versions.keys()):
             if char_name.lower() not in detail.lower():
                 continue
-            char = None
-            try:
-                char = self.asset_manager.world_state.get_character(char_name)
-            except Exception:
-                pass
-
+            char      = self.world_state.get_character(char_name) if self.world_state else None
             char_desc = json.dumps(char.model_dump()) if char else f"Character named {char_name}"
-
-            system = REPAIR_CHARACTER_SYSTEM
-            user   = REPAIR_CHARACTER_USER.format(
+            system    = REPAIR_CHARACTER_SYSTEM
+            user      = REPAIR_CHARACTER_USER.format(
                 character_name=char_name,
                 character_description=char_desc,
                 failure_detail=detail
@@ -74,6 +69,8 @@ class RepairEngine:
 
     def _repair_story(self, shot_model: Any, detail: str) -> None:
         logger.info("Repairing story contradiction: %s", detail)
+        if not self.director:
+            return
         system = REPAIR_STORY_SYSTEM
         user   = REPAIR_STORY_USER.format(
             shot_id=shot_model.shot_id,
@@ -85,7 +82,6 @@ class RepairEngine:
             if not shot_model.validation_result:
                 shot_model.validation_result = {}
             shot_model.validation_result["story_repair_note"] = corrected.strip()
-            logger.info("Story repair written for shot %s", shot_model.shot_id)
         except Exception as e:
             logger.error("Story repair failed: %s", e)
 
@@ -109,12 +105,11 @@ class RepairEngine:
             scene["physics_repair"] = {"applied": True, "detail": detail, "ground_clamp": True}
             with open(scene_path, "w", encoding="utf-8") as f:
                 json.dump(scene, f, indent=2)
-            logger.info("Physics repair patch written to %s", scene_path)
         except Exception as e:
             logger.error("Physics repair failed: %s", e)
 
     def _repair_fallback(self, shot_model: Any, detail: str) -> None:
-        logger.info("Fallback repair for unclassified failure: %s", detail)
+        logger.info("Fallback repair for: %s", detail)
         try:
             result = self.scene_composer.compose_shot_scene(shot_model)
             shot_model.render_path = result.get("scene_json_path", shot_model.render_path)
