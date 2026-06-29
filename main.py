@@ -1,6 +1,6 @@
 """
 AI Production Studio — Entry Point.
-Loads config, shows API key setup on first run, initialises all systems, launches PyQt6 UI.
+Loads config, shows API key dialog on first run, launches PyQt6 UI.
 """
 import sys
 import logging
@@ -44,21 +44,18 @@ def needs_api_key(config: dict) -> bool:
 
 
 def show_api_key_dialog(config: dict) -> dict:
-    """Show API key setup dialog before main window if key is missing."""
     from src.ui.api_key_dialog import APIKeyDialog
-    app_ref = QApplication.instance()
     dialog = APIKeyDialog(config)
     if dialog.exec():
         config = dialog.get_updated_config()
-        # Persist to config.yaml
         with open("config.yaml", "w") as f:
             yaml.dump(config, f, default_flow_style=False)
-        logger.info("API key saved to config.yaml")
+        logger.info("API key saved")
     return config
 
 
 def build_pipeline(config: dict):
-    """Instantiate and wire all pipeline components. Accepts config dict."""
+    """Wire all pipeline components. Every component receives config dict."""
     from src.core.world_state.world_state import WorldStateManager
     from src.providers.gemini_provider import GeminiProvider
     from src.providers.imagen_provider import ImagenProvider
@@ -69,16 +66,16 @@ def build_pipeline(config: dict):
     from src.core.director.director import Director
     from src.core.orchestrator.orchestrator import PipelineOrchestrator
 
-    # All components receive config dict — no db_path string anywhere
     world_state    = WorldStateManager(config)
     llm_provider   = GeminiProvider(config)
     image_provider = ImagenProvider(config)
     asset_manager  = AssetManager(config, image_provider)
     scene_composer = SceneComposer(config)
     validator_mgr  = ValidatorManager(llm_provider, llm_provider)
-    repair_engine  = RepairEngine(asset_manager, scene_composer, None)
     director       = Director(llm_provider, world_state)
-    repair_engine.director = director
+
+    # RepairEngine gets world_state directly — not via asset_manager
+    repair_engine = RepairEngine(asset_manager, scene_composer, director, world_state)
 
     orchestrator = PipelineOrchestrator(
         config, world_state, asset_manager,
@@ -96,7 +93,6 @@ def main() -> None:
     app.setApplicationName("AI Production Studio")
     app.setStyle("Fusion")
 
-    # Show API key dialog if not configured
     if needs_api_key(config):
         config = show_api_key_dialog(config)
 
@@ -105,7 +101,7 @@ def main() -> None:
     try:
         director, orchestrator, world_state, asset_manager = build_pipeline(config)
     except Exception as e:
-        logger.error(f"Pipeline init failed: {e} — launching UI in limited mode")
+        logger.error(f"Pipeline init failed: {e}", exc_info=True)
         director = orchestrator = world_state = asset_manager = None
 
     window = MainWindow(config, world_state, orchestrator)
@@ -115,8 +111,8 @@ def main() -> None:
             from PyQt6.QtCore import QThread, QObject, pyqtSignal
 
             class Worker(QObject):
-                shot_updated  = pyqtSignal(str, str, str)
-                pipeline_done = pyqtSignal(str)
+                shot_updated   = pyqtSignal(str, str, str)
+                pipeline_done  = pyqtSignal(str)
                 pipeline_error = pyqtSignal(str)
 
                 def __init__(self, prompt, target):
@@ -126,19 +122,13 @@ def main() -> None:
 
                 def run(self):
                     try:
-                        from src.core.director.task_planner import TaskPlanner
-                        plan = director.generate_production_plan(self.prompt)
+                        plan  = director.generate_production_plan(self.prompt)
                         tasks = director.create_task_schedule(plan)
                         orchestrator.load_task_schedule(tasks)
-
                         shot_ids = [s.shot_id for s in plan.shots]
                         window.timeline.load_shots(shot_ids)
-
-                        def on_update(sid, status, fp=""):
-                            self.shot_updated.emit(sid, status, fp)
-
                         orchestrator.run_pipeline()
-                        self.pipeline_done.emit("")
+                        self.pipeline_done.emit("done")
                     except Exception as ex:
                         logger.error(f"Pipeline error: {ex}", exc_info=True)
                         self.pipeline_error.emit(str(ex))
