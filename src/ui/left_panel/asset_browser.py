@@ -1,97 +1,62 @@
 """
-Asset Browser Widget
-Displays characters, props, and environments version files in a collapsible tree.
+Asset Browser — shows all assets organised by type and version.
 """
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTreeWidget, QTreeWidgetItem
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTreeWidget, QTreeWidgetItem, QLabel
 from PyQt6.QtCore import Qt
 
-class AssetBrowserWidget(QWidget):
-    """
-    Asset Browser Widget
-    Displays characters, props, and environments version files in a collapsible tree.
-    """
-    def __init__(self, parent=None) -> None:
-        super().__init__(parent)
-        self._init_ui()
-        
-    def _init_ui(self) -> None:
+STYLE = """
+QWidget { background: #13161e; border-bottom: 1px solid #1e2330; }
+QLabel { color: #6b7280; font-size: 11px; font-weight: bold;
+         letter-spacing: 0.08em; padding: 10px 12px 4px; }
+QTreeWidget {
+    background: #0d0f14; color: #d4d8e8; border: none;
+    font-size: 12px;
+}
+QTreeWidget::item:hover { background: #13161e; }
+QTreeWidget::item:selected { background: #1e2330; color: #5b6af5; }
+"""
+
+
+class AssetBrowser(QWidget):
+    """Tree view of all project assets by category and version."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.setStyleSheet(STYLE)
+        self._build()
+
+    def _build(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(10)
-        
-        title_label = QLabel("Asset Register")
-        title_label.setStyleSheet("font-weight: bold; font-size: 14px; color: #ffffff;")
-        layout.addWidget(title_label)
-        
+        layout.setContentsMargins(12, 0, 12, 12)
+        layout.setSpacing(4)
+
+        layout.addWidget(QLabel("ASSETS"))
+
         self.tree = QTreeWidget()
         self.tree.setHeaderHidden(True)
-        self.tree.setStyleSheet("""
-            QTreeWidget {
-                background-color: #2b2b2b;
-                color: #ffffff;
-                border: 1px solid #444444;
-                border-radius: 4px;
-                font-size: 12px;
-            }
-            QTreeWidget::item {
-                padding: 4px;
-            }
-            QTreeWidget::item:hover {
-                background-color: #383838;
-            }
-            QTreeWidget::item:selected {
-                background-color: #1a4f7c;
-            }
-        """)
+        self.tree.setIndentation(16)
         layout.addWidget(self.tree)
-        
-        # Populate initial empty structure
-        self.characters_root = QTreeWidgetItem(self.tree, ["Characters"])
-        self.objects_root = QTreeWidgetItem(self.tree, ["Objects & Props"])
-        self.environments_root = QTreeWidgetItem(self.tree, ["Environments"])
-        
-        self.tree.expandAll()
-        
-    def refresh_assets(self, world_state) -> None:
-        """Queries world_state and updates the asset tree."""
-        # Clear existing children
-        self.characters_root.takeChildren()
-        self.objects_root.takeChildren()
-        self.environments_root.takeChildren()
-        
-        # Load characters
-        characters = world_state.get_all_characters()
-        for char in characters:
-            char_item = QTreeWidgetItem(self.characters_root, [char.name])
-            if char.appearance:
-                QTreeWidgetItem(char_item, [f"Appearance: {char.appearance}"])
-            if char.clothing:
-                QTreeWidgetItem(char_item, [f"Clothing: {char.clothing}"])
-            if char.injuries:
-                QTreeWidgetItem(char_item, [f"Injuries: {char.injuries}"])
-            QTreeWidgetItem(char_item, [f"Last Seen: {char.last_seen_shot_id or 'Never'}"])
-            
-        # Load objects
-        objects = world_state.get_all_objects()
-        for obj in objects:
-            obj_item = QTreeWidgetItem(self.objects_root, [obj.name])
-            QTreeWidgetItem(obj_item, [f"Location: {obj.location or 'N/A'}"])
-            QTreeWidgetItem(obj_item, [f"Condition: {obj.condition}"])
-            if obj.owner:
-                QTreeWidgetItem(obj_item, [f"Owner: {obj.owner}"])
-            QTreeWidgetItem(obj_item, [f"Version: {obj.version}"])
-            
-        # Load environments from world events
-        events = world_state.get_world_events()
-        environments_added = set()
-        for ev in events:
-            env_name = f"{ev.weather} {ev.time_of_day}"
-            if env_name not in environments_added:
-                env_item = QTreeWidgetItem(self.environments_root, [env_name])
-                QTreeWidgetItem(env_item, [f"Lighting: {ev.lighting}"])
-                QTreeWidgetItem(env_item, [f"Weather: {ev.weather}"])
-                QTreeWidgetItem(env_item, [f"Time: {ev.time_of_day}"])
-                environments_added.add(env_name)
-                
-        self.tree.expandAll()
 
+        self._add_placeholder()
+
+    def _add_placeholder(self) -> None:
+        for category in ["Characters", "Objects", "Environments"]:
+            item = QTreeWidgetItem([category])
+            item.setForeground(0, __import__("PyQt6.QtGui", fromlist=["QColor"]).QColor("#6b7280"))
+            self.tree.addTopLevelItem(item)
+
+    def refresh(self, assets: dict) -> None:
+        """
+        Reload tree from assets dict:
+        { "characters": {"john": ["v1","v2"]}, "objects": {...}, ... }
+        """
+        self.tree.clear()
+        for category, items in assets.items():
+            cat_item = QTreeWidgetItem([category.title()])
+            for name, versions in items.items():
+                name_item = QTreeWidgetItem([name])
+                for v in versions:
+                    name_item.addChild(QTreeWidgetItem([v]))
+                cat_item.addChild(name_item)
+            self.tree.addTopLevelItem(cat_item)
+            cat_item.setExpanded(True)
