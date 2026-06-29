@@ -1,10 +1,11 @@
 """
-Style Validator — checks color/tone consistency across shots.
-Uses Gemini Vision.
+Style Validator — checks colour/tone consistency across shots.
+Uses centralised prompts from src/providers/prompts.py.
 """
 import logging
 from pathlib import Path
 from src.core.validator.base_validator import BaseValidator, ValidationResult
+from src.providers.prompts import STYLE_VALIDATOR_SYSTEM, STYLE_VALIDATOR_USER
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +18,7 @@ class StyleValidator(BaseValidator):
 
     def validate(self, shot_data: dict, world_state) -> ValidationResult:
         render_path = shot_data.get("render_path", "")
-        frame_path = self._find_first_frame(render_path)
-
+        frame_path  = self._find_first_frame(render_path)
         if not frame_path:
             return ValidationResult(passed=True)
 
@@ -26,19 +26,15 @@ class StyleValidator(BaseValidator):
         if not style_ref:
             return ValidationResult(passed=True)
 
-        question = (
-            f"The established visual style is: {style_ref}\n"
-            "Does this image match that style in terms of color palette, tone, and mood? "
-            "If yes, reply: STYLE_CONSISTENT. If not, describe the inconsistency."
-        )
+        user = STYLE_VALIDATOR_USER.format(style_reference=style_ref)
 
         try:
             with open(frame_path, "rb") as f:
                 image_bytes = f.read()
-            result = self.vision.analyze(image_bytes, question)
+            result = self.vision.analyze(image_bytes, user)
             if "STYLE_CONSISTENT" in result.upper():
                 return ValidationResult(passed=True)
-            return ValidationResult(passed=False, failures=[result.strip()], severity="warning")
+            return ValidationResult(passed=False, failures=[f"[style] {result.strip()}"], severity="warning")
         except Exception as e:
             logger.error(f"Style validation failed: {e}")
             return ValidationResult(passed=True)
