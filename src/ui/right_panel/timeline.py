@@ -1,162 +1,126 @@
 """
-Horizontal Timeline Widget
-A scrollable list of visual frame thumbnails and placeholders indicating generation status.
+Timeline — CapCut-style horizontal shot timeline.
+Placeholders grey, generating = blue pulse, done = thumbnail, failed = red border.
 """
-from PyQt6.QtWidgets import QWidget, QScrollArea, QHBoxLayout, QVBoxLayout, QLabel, QFrame
-from PyQt6.QtCore import pyqtSignal, Qt
-from PyQt6.QtGui import QPixmap
-import os
+from PyQt6.QtWidgets import (
+    QWidget, QScrollArea, QHBoxLayout, QVBoxLayout,
+    QLabel, QFrame, QSizePolicy
+)
+from PyQt6.QtCore import Qt, pyqtSignal, QSize
+from PyQt6.QtGui import QPixmap, QColor, QPainter
+
+STYLE = """
+QWidget { background: #0a0c10; }
+QScrollArea { border: none; background: #0a0c10; }
+"""
+
+SHOT_BASE = """
+QFrame {
+    border-radius: 6px;
+    border: 2px solid #1e2330;
+    background: #13161e;
+}
+QLabel { border: none; background: transparent; color: #6b7280; font-size: 10px; }
+"""
+SHOT_GENERATING = SHOT_BASE.replace("#1e2330", "#5b6af5")
+SHOT_DONE       = SHOT_BASE.replace("#1e2330", "#3ecf8e")
+SHOT_FAILED     = SHOT_BASE.replace("#1e2330", "#f06060")
+
 
 class ShotCard(QFrame):
-    """Clickable UI card representing a single Shot."""
     clicked = pyqtSignal(str)
-    
-    def __init__(self, shot_id: str, status: str, render_path: str, parent=None):
-        super().__init__(parent)
+
+    def __init__(self, shot_id: str) -> None:
+        super().__init__()
         self.shot_id = shot_id
-        self.status = status
-        self.render_path = render_path
-        self._init_ui()
-        
-    def _init_ui(self) -> None:
-        self.setFixedSize(140, 140)
-        self.setFrameShape(QFrame.Shape.StyledPanel)
-        
-        # Style based on status
-        border_color = "#444444"
-        bg_color = "#2b2b2b"
-        if self.status == "done":
-            border_color = "#2ecc71" # green
-        elif self.status == "failed":
-            border_color = "#e74c3c" # red
-        elif self.status in ["generating", "running"]:
-            border_color = "#f1c40f" # orange
-            
-        self.setStyleSheet(f"""
-            ShotCard {{
-                background-color: {bg_color};
-                border: 2px solid {border_color};
-                border-radius: 6px;
-            }}
-            ShotCard:hover {{
-                border: 2px solid #007acc;
-                background-color: #353535;
-            }}
-        """)
-        
+        self.setFixedSize(QSize(140, 90))
+        self.setStyleSheet(SHOT_BASE)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(6, 6, 6, 6)
-        layout.setSpacing(4)
-        
-        # ID label
-        id_label = QLabel(self.shot_id.upper())
-        id_label.setStyleSheet("font-weight: bold; color: #ffffff; font-size: 11px;")
-        id_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(id_label)
-        
-        # Thumbnail image
-        self.thumb_label = QLabel()
-        self.thumb_label.setFixedSize(124, 75)
-        self.thumb_label.setStyleSheet("background-color: #111111; border-radius: 4px;")
-        self.thumb_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        # Load image if exists
-        frame_file = f"./storage/cache/{self.shot_id}/frame_0000.png"
-        if not os.path.exists(frame_file):
-            cache_dir = f"./storage/cache/{self.shot_id}"
-            if os.path.exists(cache_dir):
-                files = [f for f in os.listdir(cache_dir) if f.endswith(".png")]
-                if files:
-                    frame_file = os.path.join(cache_dir, files[0])
-                    
-        if os.path.exists(frame_file):
-            pixmap = QPixmap(frame_file)
-            if not pixmap.isNull():
-                self.thumb_label.setPixmap(pixmap.scaled(self.thumb_label.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        layout.setContentsMargins(4, 4, 4, 4)
+
+        self.thumb = QLabel()
+        self.thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.thumb.setText(shot_id)
+        self.thumb.setFixedHeight(60)
+        layout.addWidget(self.thumb)
+
+        self.label = QLabel(shot_id)
+        self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.label)
+
+    def mousePressEvent(self, event):
+        self.clicked.emit(self.shot_id)
+
+    def set_status(self, status: str, frame_path: str = "") -> None:
+        if status == "generating":
+            self.setStyleSheet(SHOT_GENERATING)
+            self.thumb.setText("generating...")
+        elif status == "done":
+            self.setStyleSheet(SHOT_DONE)
+            if frame_path:
+                pix = QPixmap(frame_path).scaled(132, 60, Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation)
+                self.thumb.setPixmap(pix)
+        elif status == "failed":
+            self.setStyleSheet(SHOT_FAILED)
+            self.thumb.setText("✕ failed")
         else:
-            self.thumb_label.setText("[No Frame]")
-            self.thumb_label.setStyleSheet("color: #666666; background-color: #111111; font-size: 10px;")
-            
-        layout.addWidget(self.thumb_label)
-        
-        # Status Label
-        status_label = QLabel(self.status.upper())
-        status_color = "#888888"
-        if self.status == "done":
-            status_color = "#2ecc71"
-        elif self.status == "failed":
-            status_color = "#e74c3c"
-        elif self.status in ["generating", "running"]:
-            status_color = "#f1c40f"
-        status_label.setStyleSheet(f"font-weight: bold; color: {status_color}; font-size: 10px;")
-        status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(status_label)
-        
-    def mousePressEvent(self, event) -> None:
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.clicked.emit(self.shot_id)
-            super().mousePressEvent(event)
+            self.setStyleSheet(SHOT_BASE)
+            self.thumb.setText(self.shot_id)
 
 
-class TimelineWidget(QWidget):
-    """
-    Horizontal Timeline Widget
-    A scrollable list of visual frame thumbnails and placeholders indicating generation status.
-    """
-    shot_selected = pyqtSignal(str) # Emitted when a card is clicked
-    
-    def __init__(self, parent=None) -> None:
-        super().__init__(parent)
-        self._init_ui()
-        
-    def _init_ui(self) -> None:
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(10)
-        
-        title_label = QLabel("Production Sequence Timeline")
-        title_label.setStyleSheet("font-weight: bold; font-size: 14px; color: #ffffff;")
-        layout.addWidget(title_label)
-        
-        # Scroll area for cards
+class Timeline(QWidget):
+    """Horizontal scrollable shot timeline."""
+
+    shot_selected = pyqtSignal(str)
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.setStyleSheet(STYLE)
+        self.cards: dict[str, ShotCard] = {}
+        self._build()
+
+    def _build(self) -> None:
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        label = QLabel("TIMELINE")
+        label.setStyleSheet("color: #6b7280; font-size: 10px; font-weight: bold;"
+                            "letter-spacing: 0.1em; padding: 8px 12px 4px;")
+        outer.addWidget(label)
+
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.scroll.setStyleSheet("""
-            QScrollArea {
-                background-color: #1a1a1a;
-                border: 1px solid #333333;
-                border-radius: 4px;
-            }
-        """)
-        
-        self.scroll_content = QWidget()
-        self.scroll_layout = QHBoxLayout(self.scroll_content)
-        self.scroll_layout.setContentsMargins(5, 5, 5, 5)
-        self.scroll_layout.setSpacing(10)
-        self.scroll_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        
-        self.scroll.setWidget(self.scroll_content)
-        layout.addWidget(self.scroll)
-        
-    def refresh_timeline(self, world_state) -> None:
-        """Queries world_state and rebuilds the timeline list."""
-        # Clear existing cards
-        for i in reversed(range(self.scroll_layout.count())):
-            widget = self.scroll_layout.itemAt(i).widget()
-            if widget:
-                widget.deleteLater()
-                
-        shots = world_state.get_all_shots()
-        if not shots:
-            empty_label = QLabel("No shots generated yet. Enter a story prompt above and press run.")
-            empty_label.setStyleSheet("color: #666666; font-size: 12px; font-style: italic;")
-            self.scroll_layout.addWidget(empty_label)
-            return
-            
-        for shot in shots:
-            card = ShotCard(shot.shot_id, shot.status, shot.render_path)
-            card.clicked.connect(self.shot_selected.emit)
-            self.scroll_layout.addWidget(card)
 
+        self.inner = QWidget()
+        self.row = QHBoxLayout(self.inner)
+        self.row.setContentsMargins(12, 8, 12, 8)
+        self.row.setSpacing(8)
+        self.row.addStretch()
+
+        self.scroll.setWidget(self.inner)
+        outer.addWidget(self.scroll)
+
+    def load_shots(self, shot_ids: list[str]) -> None:
+        """Populate timeline with placeholder cards."""
+        # Clear existing
+        for card in self.cards.values():
+            card.deleteLater()
+        self.cards.clear()
+        self.row.removeItem(self.row.itemAt(self.row.count() - 1))
+
+        for sid in shot_ids:
+            card = ShotCard(sid)
+            card.clicked.connect(self.shot_selected)
+            self.cards[sid] = card
+            self.row.addWidget(card)
+
+        self.row.addStretch()
+
+    def update_shot(self, shot_id: str, status: str, frame_path: str = "") -> None:
+        if shot_id in self.cards:
+            self.cards[shot_id].set_status(status, frame_path)
