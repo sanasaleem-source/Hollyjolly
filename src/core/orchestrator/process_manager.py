@@ -1,74 +1,49 @@
 """
-Process Manager Module
-Safely spawns and tracks subprocess processes for headless Godot, Blender, and FFmpeg.
-Never spawns more than one heavy process simultaneously in V1.
+Process Manager — spawns and monitors external tool subprocesses.
+Never uses check=True — callers inspect returncode themselves.
+Never spawns more than one heavy process at a time (V1).
 """
-
 import subprocess
 import logging
-import sys
-from typing import List, Optional
+from typing import List
+
+logger = logging.getLogger(__name__)
+
 
 class ProcessManager:
-    """Manages spawning, execution tracking, and timeout controls for external tools."""
-    
+    """Manages subprocess spawning for Godot, Blender, and FFmpeg."""
+
     def __init__(self, config: dict) -> None:
-        self.config = config
-        self.godot_path = config.get("godot_path", "godot")
+        self.godot_path   = config.get("godot_path",   "godot")
         self.blender_path = config.get("blender_path", "blender")
-        self.ffmpeg_path = config.get("ffmpeg_path", "ffmpeg")
-        self.logger = logging.getLogger("ProcessManager")
+        self.ffmpeg_path  = config.get("ffmpeg_path",  "ffmpeg")
 
     def run_process(self, cmd: List[str], timeout_sec: int = 300) -> subprocess.CompletedProcess:
         """
-        Runs a command as a blocking subprocess call, enforcing a timeout
-        and logging stdout/stderr streams.
+        Run a subprocess. NEVER raises on non-zero exit — callers check returncode.
+        Captures stdout and stderr. Enforces timeout.
         """
-        self.logger.info(f"Spawning process: {' '.join(cmd)}")
-        
+        logger.info(f"Spawning: {' '.join(str(c) for c in cmd)}")
         try:
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=timeout_sec,
-                check=True
+                timeout=timeout_sec
+                # no check=True — callers handle returncode
             )
-            # Log output summaries
             if result.stdout:
-                self.logger.debug(f"Subprocess output: {result.stdout[:500]}...")
+                logger.debug(f"stdout: {result.stdout[:500]}")
+            if result.stderr and result.returncode != 0:
+                logger.warning(f"stderr: {result.stderr[:500]}")
             return result
-        except subprocess.TimeoutExpired as te:
-            self.logger.error(f"Process timed out after {timeout_sec}s: {' '.join(cmd)}")
-            raise te
-        except subprocess.CalledProcessError as cpe:
-            self.logger.error(f"Process failed with exit code {cpe.returncode}")
-            self.logger.error(f"Error output: {cpe.stderr}")
-            raise cpe
+        except subprocess.TimeoutExpired:
+            logger.error(f"Process timed out after {timeout_sec}s: {cmd[0]}")
+            # Return a fake CompletedProcess with failure code
+            return subprocess.CompletedProcess(cmd, returncode=1, stdout="", stderr="timeout")
+        except FileNotFoundError:
+            logger.error(f"Executable not found: {cmd[0]} — check config.yaml paths")
+            return subprocess.CompletedProcess(cmd, returncode=1, stdout="", stderr="not_found")
         except Exception as e:
-            self.logger.error(f"Unexpected error running process: {e}")
-            raise e
-
-    def run_godot_headless(self, scene_script_path: str, output_path: str, timeout: int = 300) -> subprocess.CompletedProcess:
-        """Spawns Godot 4 headlessly to execute a rendering script."""
-        cmd = [
-            self.godot_path,
-            "--headless",
-            "--script", scene_script_path,
-            "--output-dir", output_path
-        ]
-        return self.run_process(cmd, timeout_sec=timeout)
-
-    def run_blender_headless(self, python_script_path: str, timeout: int = 300) -> subprocess.CompletedProcess:
-        """Spawns Blender in background mode to run a Python modelling script."""
-        cmd = [
-            self.blender_path,
-            "--background",
-            "--python", python_script_path
-        ]
-        return self.run_process(cmd, timeout_sec=timeout)
-
-    def run_ffmpeg(self, args: List[str], timeout: int = 300) -> subprocess.CompletedProcess:
-        """Spawns FFmpeg tool with arguments for video compilation."""
-        cmd = [self.ffmpeg_path] + args
-        return self.run_process(cmd, timeout_sec=timeout)
+            logger.error(f"Unexpected process error: {e}")
+            return subprocess.CompletedProcess(cmd, returncode=1, stdout="", stderr=str(e))
