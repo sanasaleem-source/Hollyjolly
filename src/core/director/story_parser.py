@@ -1,64 +1,82 @@
 """
-Story Parser Module
-Parses raw user stories or prompts into structured scenes and shots using LLM models.
+Story Parser — parses user prompt into structured ProductionPlan using Gemini.
+Uses centralised prompts from src/providers/prompts.py.
 """
-
+import json
+import logging
+import re
 from typing import List, Optional
 from pydantic import BaseModel, Field
+from src.providers.prompts import DIRECTOR_SYSTEM, DIRECTOR_USER
+
+logger = logging.getLogger(__name__)
+
 
 class ShotPlan(BaseModel):
-    """Pydantic representation of a single planned video shot."""
-    shot_id: str = Field(description="Unique identifier for the shot (e.g. shot_001)")
-    scene_id: str = Field(description="Unique identifier for the scene this shot belongs to")
-    description: str = Field(description="Visual and action details of the shot")
-    camera_angle: str = Field(description="The camera perspective or angle, e.g., Wide, Close-Up, Low-Angle")
-    duration_seconds: float = Field(description="Duration of the shot in seconds")
-    lighting: str = Field(description="Lighting style or environment illumination, e.g., Golden Hour, High-Key, Low-Key")
-    characters_present: List[str] = Field(default_factory=list, description="List of characters appearing in this shot")
-    objects_present: List[str] = Field(default_factory=list, description="List of prominent props/objects in this shot")
-    dialogue: Optional[str] = Field(None, description="Spoken dialogue in the shot, if any")
-    action: str = Field(description="Primary motion/action occurring within this shot")
+    shot_id: str
+    scene_id: str
+    description: str
+    camera_angle: str
+    duration_seconds: float
+    lighting: str
+    characters_present: List[str] = Field(default_factory=list)
+    objects_present: List[str] = Field(default_factory=list)
+    dialogue: Optional[str] = None
+    action: str
+
 
 class ProductionPlan(BaseModel):
-    """Pydantic representation of the overall multi-shot production workflow."""
-    title: str = Field(description="A descriptive title for the generated sequence")
-    shots: List[ShotPlan] = Field(description="Sequential list of shots comprising the video production")
+    title: str
+    shots: List[ShotPlan]
+
 
 class StoryParser:
-    """Uses LLM Provider to parse user's narrative input into structured ShotPlans."""
-    
+    """Uses Gemini via centralised prompts to parse story into ShotPlans."""
+
     def __init__(self, provider) -> None:
-        """Initializes the parser with an AI LLM provider instance."""
         self.provider = provider
 
     def parse_story(self, prompt: str, world_context: str) -> ProductionPlan:
-        """
-        Sends the user story and world state to Gemini and structures it into a ProductionPlan.
-        
-        :param prompt: The raw user prompt detailing the plot.
-        :param world_context: A serialized JSON string of the current known World State.
-        :return: A parsed and validated ProductionPlan object.
-        """
-        system_prompt = (
-            "You are an expert film director and storyboard planner. Your job is to parse a story prompt "
-            "into a detailed sequential list of film shots. You must respect the current World State "
-            "context for continuity. All output MUST strictly follow the provided JSON schema."
+        """Send prompt + world context to Gemini, return validated ProductionPlan."""
+        system = DIRECTOR_SYSTEM
+        user   = DIRECTOR_USER.format(
+            world_context=world_context or "No prior context — this is the first shot.",
+            story_prompt=prompt
         )
-        
-        user_prompt = (
-            f"Current World State Context:\n{world_context}\n\n"
-            f"Story Prompt:\n{prompt}\n\n"
-            "Produce a structured JSON output of the ProductionPlan. Do not include any chat formatting, "
-            "preambles, or markdown wrappers. Only valid JSON."
-        )
-        
-        # In a real pipeline, we call the LLM provider and parse with Pydantic
-        raw_response = self.provider.generate(system_prompt, user_prompt)
-        
+
+        raw = self.provider.generate(system, user)
+        return self._parse_response(raw, prompt)
+
+    def _parse_response(self, raw: str, original_prompt: str) -> ProductionPlan:
+        """Parse and validate Gemini JSON response into ProductionPlan."""
+        # Strip markdown fences if present
+        cleaned = re.sub(r"```(?:json)?\s*", "", raw).strip().rstrip("`").strip()
+
         try:
-            # Parse and validate using Pydantic
-            plan = ProductionPlan.model_validate_json(raw_response)
-            return plan
+            return ProductionPlan.model_validate_json(cleaned)
         except Exception as e:
-            # Fallback or raising error for orchestrator to handle
-            raise ValueError(f"Failed to validate production plan JSON: {e}\nRaw output: {raw_response}")
+            logger.warning(f"Direct parse failed ({e}) — attempting JSON extraction")
+            # Try extracting JSON object from within the response
+            match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+            if match:
+                try:
+                    return ProductionPlan.model_validate_json(match.group())
+                except Exception as e2:
+                    logger.error(f"JSON extraction also failed: {e2}")
+
+            # Last resort: return a minimal fallback plan so the pipeline doesn't crash
+            logger.error("Falling back to minimal production plan")
+            return ProductionPlan(
+                title="Untitled Production",
+                shots=[ShotPlan(
+                    shot_id="shot_001",
+                    scene_id="scene_001",
+                    description=original_prompt[:200],
+                    camera_angle="Medium",
+                    duration_seconds=4.0,
+                    lighting="High-Key",
+                    characters_present=[],
+                    objects_present=[],
+                    action="Scene opens."
+                )]
+            )
