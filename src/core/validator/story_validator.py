@@ -1,9 +1,10 @@
 """
-Story Validator — checks this shot does not contradict earlier events.
-Uses Gemini LLM.
+Story Validator — checks shot does not contradict earlier events.
+Uses centralised prompts from src/providers/prompts.py.
 """
 import logging
 from src.core.validator.base_validator import BaseValidator, ValidationResult
+from src.providers.prompts import STORY_VALIDATOR_SYSTEM, STORY_VALIDATOR_USER
 
 logger = logging.getLogger(__name__)
 
@@ -15,38 +16,31 @@ class StoryValidator(BaseValidator):
         self.llm = llm_provider
 
     def validate(self, shot_data: dict, world_state) -> ValidationResult:
-        shot_id = shot_data.get("shot_id", "unknown")
+        shot_id     = shot_data.get("shot_id", "unknown")
         description = shot_data.get("description", "")
+        action      = shot_data.get("action", "")
+        full_desc   = f"{description} {action}".strip()
 
         history = world_state.get_shot_history()
         if not history:
             return ValidationResult(passed=True)
 
         history_text = "\n".join(
-            f"Shot {s.get('shot_id')}: {s.get('description', '')}"
-            for s in history[-10:]  # last 10 shots for context
+            f"Shot {s.get('shot_id')}: {s.get('description', '')} — {s.get('action', '')}"
+            for s in history[-10:]
         )
 
-        system = (
-            "You are a story continuity checker. "
-            "Given a shot history and a new shot, identify any contradictions. "
-            "If none exist, reply exactly: NO_CONTRADICTIONS"
-        )
-        user = (
-            f"Shot history:\n{history_text}\n\n"
-            f"New shot {shot_id}: {description}\n\n"
-            "List any contradictions, or reply NO_CONTRADICTIONS."
+        user = STORY_VALIDATOR_USER.format(
+            shot_history=history_text,
+            shot_id=shot_id,
+            shot_description=full_desc
         )
 
         try:
-            result = self.llm.generate(system, user)
+            result = self.llm.generate(STORY_VALIDATOR_SYSTEM, user)
             if "NO_CONTRADICTIONS" in result.upper():
                 return ValidationResult(passed=True)
-            return ValidationResult(
-                passed=False,
-                failures=[result.strip()],
-                severity="error"
-            )
+            return ValidationResult(passed=False, failures=[f"[story] {result.strip()}"], severity="error")
         except Exception as e:
             logger.error(f"Story validation failed: {e}")
-            return ValidationResult(passed=True)  # don't block on API error
+            return ValidationResult(passed=True)
