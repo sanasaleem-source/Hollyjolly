@@ -1,10 +1,11 @@
 """
 Physics Validator — checks for obvious physics violations in rendered frames.
-Uses Gemini Vision.
+Uses centralised prompts from src/providers/prompts.py.
 """
 import logging
 from pathlib import Path
 from src.core.validator.base_validator import BaseValidator, ValidationResult
+from src.providers.prompts import PHYSICS_VALIDATOR_SYSTEM, PHYSICS_VALIDATOR_USER
 
 logger = logging.getLogger(__name__)
 
@@ -17,26 +18,20 @@ class PhysicsValidator(BaseValidator):
 
     def validate(self, shot_data: dict, world_state) -> ValidationResult:
         render_path = shot_data.get("render_path", "")
-        frame_path = self._find_first_frame(render_path)
-
+        frame_path  = self._find_first_frame(render_path)
         if not frame_path:
             return ValidationResult(passed=True)
 
-        question = (
-            "Check this image for obvious physics violations such as: "
-            "characters floating above the ground, objects clipping through surfaces, "
-            "impossible body positions, or anything that looks physically impossible. "
-            "If everything looks physically plausible, reply: PHYSICS_OK. "
-            "Otherwise describe the violation."
-        )
+        description = shot_data.get("description", "")
+        user = PHYSICS_VALIDATOR_USER.format(shot_description=description)
 
         try:
             with open(frame_path, "rb") as f:
                 image_bytes = f.read()
-            result = self.vision.analyze(image_bytes, question)
+            result = self.vision.analyze(image_bytes, user)
             if "PHYSICS_OK" in result.upper():
                 return ValidationResult(passed=True)
-            return ValidationResult(passed=False, failures=[result.strip()], severity="warning")
+            return ValidationResult(passed=False, failures=[f"[physics] {result.strip()}"], severity="warning")
         except Exception as e:
             logger.error(f"Physics validation failed: {e}")
             return ValidationResult(passed=True)
