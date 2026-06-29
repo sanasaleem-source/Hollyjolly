@@ -1,26 +1,39 @@
 """
-Frame Collector Module
-Collects and audits rendered frame sequences to confirm expected outputs are complete.
+Frame Collector — validates and collects rendered PNG frames from Godot output directory.
 """
-
+import logging
 from pathlib import Path
-from typing import List
+
+logger = logging.getLogger(__name__)
+
 
 class FrameCollector:
-    """Monitors and processes render cache folders."""
-    
-    @staticmethod
-    def collect_frames(shot_id: str, storage_path: str) -> List[str]:
+    """Collects and validates rendered frames from a Godot output directory."""
+
+    def collect(self, output_dir: str) -> list[str]:
         """
-        Locates and returns ordered filepaths of all rendered frames for a specific shot.
+        Scan output_dir for frame_XXXX.png files in order.
+        Returns sorted list of absolute frame paths.
         """
-        cache_dir = Path(storage_path) / "cache" / shot_id
-        if not cache_dir.exists():
+        path = Path(output_dir)
+        if not path.exists():
+            logger.error(f"Frame output directory does not exist: {output_dir}")
             return []
-            
-        frames = []
-        for p in cache_dir.iterdir():
-            if p.is_file() and p.suffix.lower() == ".png":
-                frames.append(str(p))
-                
-        return sorted(frames)
+
+        frames = sorted(path.glob("frame_*.png"))
+        if not frames:
+            logger.warning(f"No frames found in {output_dir}")
+            return []
+
+        paths = [str(f.resolve()) for f in frames]
+        logger.info(f"Collected {len(paths)} frames from {output_dir}")
+        return paths
+
+    def validate(self, frame_paths: list[str]) -> bool:
+        """Check all expected frames exist and are non-zero size."""
+        for fp in frame_paths:
+            p = Path(fp)
+            if not p.exists() or p.stat().st_size == 0:
+                logger.error(f"Invalid frame: {fp}")
+                return False
+        return True
