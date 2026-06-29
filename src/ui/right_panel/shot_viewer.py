@@ -1,122 +1,101 @@
 """
-Shot Viewer Widget
-Shows detail inspect logs, prompt variables, and active validations for a selected shot.
+Shot Viewer — shows frames, prompt, asset versions and validation result for selected shot.
 """
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTextEdit
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+    QScrollArea, QFrame, QTextEdit
+)
 from PyQt6.QtCore import Qt
-import json
+from PyQt6.QtGui import QPixmap
 
-class ShotViewerWidget(QWidget):
-    """
-    Shot Viewer Widget
-    Shows detail inspect logs, prompt variables, and active validations for a selected shot.
-    """
-    def __init__(self, parent=None) -> None:
-        super().__init__(parent)
-        self._init_ui()
-        
-    def _init_ui(self) -> None:
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(10)
-        
-        # Title
-        title_label = QLabel("Shot Inspection Logs & Quality Control")
-        title_label.setStyleSheet("font-weight: bold; font-size: 14px; color: #ffffff;")
-        layout.addWidget(title_label)
-        
-        # Scrollable log viewer
-        self.log_viewer = QTextEdit()
-        self.log_viewer.setReadOnly(True)
-        self.log_viewer.setStyleSheet("""
-            QTextEdit {
-                background-color: #1e1e1e;
-                color: #d4d4d4;
-                border: 1px solid #333333;
-                border-radius: 4px;
-                font-family: 'JetBrains Mono', 'Fira Code', monospace;
-                font-size: 11px;
-                line-height: 1.4;
-                padding: 8px;
-            }
-        """)
-        self.log_viewer.setHtml("<span style='color: #666666;'>Select a shot card from the timeline to audit parameters and quality control metrics.</span>")
-        layout.addWidget(self.log_viewer)
-        
-    def load_shot_logs(self, shot_id: str, world_state) -> None:
-        """Loads details of a shot and formats nice HTML telemetry report."""
-        shot = world_state.get_shot(shot_id)
-        if not shot:
-            self.log_viewer.setHtml(f"<span style='color: #ff3333;'>Error: Shot {shot_id} not found in database.</span>")
-            return
-            
-        # Compile a gorgeous telemetry audit sheet
-        html = f"""
-        <h3 style='color: #007acc; margin-top: 0;'>SHOT TELEMETRY: {shot_id.upper()}</h3>
-        <table width='100%' style='border-collapse: collapse; margin-bottom: 15px;'>
-          <tr>
-            <td style='color: #888888; font-weight: bold; width: 120px;'>Scene reference:</td>
-            <td style='color: #ffffff;'>{shot.scene_id}</td>
-          </tr>
-          <tr>
-            <td style='color: #888888; font-weight: bold;'>Pipeline status:</td>
-            <td style='color: {self._get_status_color(shot.status)}; font-weight: bold;'>{shot.status.upper()}</td>
-          </tr>
-          <tr>
-            <td style='color: #888888; font-weight: bold;'>Repair attempts:</td>
-            <td style='color: #ffffff;'>{shot.repair_attempts} / 3</td>
-          </tr>
-          <tr>
-            <td style='color: #888888; font-weight: bold;'>Last updated:</td>
-            <td style='color: #aaaaaa; font-size: 10px;'>{shot.updated_at}</td>
-          </tr>
-        </table>
-        """
-        
-        # 1. Show asset versions
-        html += "<h4 style='color: #e5c07b; margin-bottom: 5px;'>RESOLVED ASSET PIPELINE:</h4>"
-        if shot.asset_versions:
-            html += "<ul>"
-            for asset, path in shot.asset_versions.items():
-                html += f"<li><b>{asset}</b>: <span style='color: #98c379;'>{path}</span></li>"
-            html += "</ul>"
-        else:
-            html += "<span style='color: #666666; font-style: italic;'>No characters/props active in this shot.</span><br/>"
-            
-        # 2. Show rendering paths
-        html += "<h4 style='color: #e5c07b; margin-top: 15px; margin-bottom: 5px;'>GODOT ENGINE COMPOSE & LAYOUT USDA:</h4>"
-        if shot.render_path:
-            html += f"<div style='background-color: #2d2d2d; padding: 4px; border-radius: 4px; border-left: 3px solid #61afef;'><code>{shot.render_path}</code></div>"
-        else:
-            html += "<span style='color: #666666; font-style: italic;'>Rendering layout file not written yet.</span><br/>"
-            
-        # 3. Quality control validators
-        html += "<h4 style='color: #e5c07b; margin-top: 15px; margin-bottom: 5px;'>QUALITY CONTROL REPORT:</h4>"
-        valid = shot.validation_result
-        if valid:
-            passed = valid.get("passed", True)
-            failures = valid.get("failures", [])
-            severity = valid.get("severity", "none")
-            
-            p_color = "#2ecc71" if passed else "#e74c3c"
-            p_text = "PASSED ALL GUARDRAILS" if passed else "FAILED QC VERIFICATION"
-            
-            html += f"<div style='font-weight: bold; color: {p_color}; margin-bottom: 5px;'>{p_text} (Severity: {severity.upper()})</div>"
-            if failures:
-                html += "<ol style='color: #ff6b6b;'>"
-                for fail in failures:
-                    html += f"<li>{fail}</li>"
-                html += "</ol>"
-            else:
-                html += "<span style='color: #2ecc71;'>✔ All character clothing, narrative plot, aesthetic styles, and physical gravity boundaries satisfied.</span><br/>"
-        else:
-            html += "<span style='color: #666666; font-style: italic;'>Quality control checks pending render.</span><br/>"
-            
-        self.log_viewer.setHtml(html)
-        
-    def _get_status_color(self, status: str) -> str:
-        if status == "done": return "#2ecc71"
-        if status == "failed": return "#e74c3c"
-        if status in ["generating", "running"]: return "#f1c40f"
-        return "#888888"
+STYLE = """
+QWidget { background: #13161e; border-top: 1px solid #1e2330; }
+QLabel.header { color: #6b7280; font-size: 10px; font-weight: bold; letter-spacing: 0.1em; }
+QTextEdit { background: #0d0f14; color: #d4d8e8; border: 1px solid #1e2330;
+            border-radius: 4px; font-size: 11px; padding: 6px; }
+"""
 
+
+class ShotViewer(QWidget):
+    """Detail view for a selected shot."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.setStyleSheet(STYLE)
+        self._build()
+
+    def _build(self) -> None:
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setSpacing(12)
+
+        # Frame strip
+        frame_col = QVBoxLayout()
+        lbl = QLabel("FRAMES")
+        lbl.setProperty("class", "header")
+        lbl.setStyleSheet("color:#6b7280;font-size:10px;font-weight:bold;")
+        frame_col.addWidget(lbl)
+        self.frame_scroll = QScrollArea()
+        self.frame_scroll.setFixedHeight(80)
+        self.frame_inner = QWidget()
+        self.frame_row = QHBoxLayout(self.frame_inner)
+        self.frame_row.setContentsMargins(0,0,0,0)
+        self.frame_row.setSpacing(4)
+        self.frame_scroll.setWidget(self.frame_inner)
+        self.frame_scroll.setWidgetResizable(True)
+        frame_col.addWidget(self.frame_scroll)
+        layout.addLayout(frame_col, stretch=2)
+
+        # Info
+        info_col = QVBoxLayout()
+        info_col.setSpacing(6)
+
+        lbl2 = QLabel("SHOT INFO")
+        lbl2.setStyleSheet("color:#6b7280;font-size:10px;font-weight:bold;")
+        info_col.addWidget(lbl2)
+
+        self.info_text = QTextEdit()
+        self.info_text.setReadOnly(True)
+        self.info_text.setMaximumHeight(80)
+        self.info_text.setPlaceholderText("Select a shot to see details...")
+        info_col.addWidget(self.info_text)
+
+        layout.addLayout(info_col, stretch=3)
+
+    def load_shot(self, shot_id: str) -> None:
+        """Load shot details into the viewer."""
+        # Clear frames
+        while self.frame_row.count():
+            item = self.frame_row.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        self.info_text.setPlainText(f"Shot: {shot_id}\nLoading details...")
+
+    def display_shot_data(self, shot_data: dict, frame_paths: list[str]) -> None:
+        """Populate with actual shot data and frames."""
+        while self.frame_row.count():
+            item = self.frame_row.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        for fp in frame_paths[:8]:
+            thumb = QLabel()
+            pix = QPixmap(fp).scaled(100, 60, Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation)
+            thumb.setPixmap(pix)
+            self.frame_row.addWidget(thumb)
+
+        val = shot_data.get("validation_result", {})
+        passed = all(v.get("passed", True) for v in val.values()) if val else True
+        status_line = "✅ Validated" if passed else "❌ Validation failed"
+
+        info = (
+            f"Shot ID: {shot_data.get('shot_id', 'unknown')}\n"
+            f"Scene: {shot_data.get('scene_id', '')}\n"
+            f"Status: {shot_data.get('status', '')}\n"
+            f"Validation: {status_line}\n"
+            f"Repair attempts: {shot_data.get('repair_attempts', 0)}\n"
+            f"Description: {shot_data.get('description', '')}"
+        )
+        self.info_text.setPlainText(info)
