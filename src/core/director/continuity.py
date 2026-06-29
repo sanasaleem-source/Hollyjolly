@@ -1,60 +1,48 @@
 """
-Continuity Module
-Ensures characters, objects, and world state variables remain uniform across shots.
-Reads current states from the database to build prompts for model guidance.
+Continuity Advisor — compiles World State into a context string for the Director.
+Uses centralised prompts from src/providers/prompts.py.
 """
-
 import json
-from typing import Dict, Any
+import logging
+from src.providers.prompts import CONTINUITY_SYSTEM, CONTINUITY_USER
+
+logger = logging.getLogger(__name__)
+
 
 class ContinuityAdvisor:
-    """Provides structured prompts and constraints to preserve story continuity."""
-    
+    """Reads World State and summarises it for Director continuity context."""
+
     def __init__(self, world_state_manager) -> None:
-        """Initializes with the unified World State manager."""
         self.world_state = world_state_manager
 
     def compile_continuity_context(self) -> str:
-        """
-        Reads from World State database and builds a text-based continuity guide for the Director.
-        """
-        # Fetch all characters
-        characters = self.world_state.get_all_characters()
-        objects = self.world_state.get_all_objects()
-        world_events = self.world_state.get_world_events()
-        
-        context_dict: Dict[str, Any] = {
-            "characters": [],
-            "objects": [],
-            "environment": {}
-        }
-        
-        for char in characters:
-            context_dict["characters"].append({
-                "name": char.name,
-                "appearance": char.appearance,
-                "clothing": char.clothing,
-                "injuries": char.injuries,
-                "relationships": char.relationships,
-                "last_seen_shot": char.last_seen_shot_id
-            })
-            
-        for obj in objects:
-            context_dict["objects"].append({
-                "name": obj.name,
-                "condition": obj.condition,
-                "location": obj.location,
-                "version": obj.version
-            })
-            
-        if world_events:
-            # Get latest world setting
-            latest = world_events[-1]
-            context_dict["environment"] = {
-                "time_of_day": latest.time_of_day,
-                "weather": latest.weather,
-                "lighting": latest.lighting,
-                "damage_state": latest.damage_state
-            }
-            
-        return json.dumps(context_dict, indent=2)
+        """Return a plain-text continuity summary for the Director prompt."""
+        try:
+            characters  = self.world_state.get_all_characters()
+            objects     = self.world_state.get_all_objects()
+            world_events = self.world_state.get_world_events()
+
+            if not characters and not objects and not world_events:
+                return "No prior context — this is the beginning of the production."
+
+            char_text = json.dumps(
+                [c.model_dump() for c in characters], indent=2
+            ) if characters else "None yet."
+
+            obj_text = json.dumps(
+                [o.model_dump() for o in objects], indent=2
+            ) if objects else "None yet."
+
+            event_text = json.dumps(
+                [e.model_dump() for e in world_events[-5:]], indent=2
+            ) if world_events else "None yet."
+
+            # Return a structured string — not calling LLM here to save tokens
+            return (
+                f"CHARACTERS:\n{char_text}\n\n"
+                f"OBJECTS:\n{obj_text}\n\n"
+                f"RECENT WORLD EVENTS:\n{event_text}"
+            )
+        except Exception as e:
+            logger.error(f"Continuity compile failed: {e}")
+            return "World State unavailable."
