@@ -35,7 +35,8 @@ QScrollBar::handle:vertical { background: #1e2330; border-radius: 4px; }
 class MainWindow(QMainWindow):
     """AI Production Studio — main application window."""
 
-    pipeline_requested = pyqtSignal(str, str)  # prompt, target_shot
+    pipeline_requested     = pyqtSignal(str, str)  # prompt, target_shot
+    model_change_requested = pyqtSignal()
 
     def __init__(self, config: dict, world_state=None, orchestrator=None) -> None:
         super().__init__()
@@ -62,6 +63,11 @@ class MainWindow(QMainWindow):
         file_menu.addAction(QAction("Open Project", self))
         file_menu.addSeparator()
         file_menu.addAction(QAction("Exit", self, triggered=self.close))
+
+        settings_menu = menubar.addMenu("Settings")
+        change_model_action = QAction("Change AI Model...", self)
+        change_model_action.triggered.connect(self.model_change_requested.emit)
+        settings_menu.addAction(change_model_action)
 
         help_menu = menubar.addMenu("Help")
         help_menu.addAction(QAction("About", self))
@@ -107,7 +113,8 @@ class MainWindow(QMainWindow):
     def _build_statusbar(self) -> None:
         self.status = QStatusBar()
         self.setStatusBar(self.status)
-        self.status.showMessage("Ready")
+        provider = self.config.get("llm_provider", "none") if self.config else "none"
+        self.status.showMessage(f"Ready — model: {provider}")
 
     def _connect_signals(self) -> None:
         self.prompt_panel.submitted.connect(self._on_prompt_submitted)
@@ -124,4 +131,5 @@ class MainWindow(QMainWindow):
 
     def pipeline_complete(self, output_path: str) -> None:
         self.status.showMessage(f"Pipeline complete → {output_path}")
-        self.preview_player.load(output_path)
+        if output_path:
+            self.preview_player.load(output_path)
