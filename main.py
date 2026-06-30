@@ -1,6 +1,7 @@
 """
 AI Production Studio — Entry Point.
-Loads config, shows API key dialog on first run, launches PyQt6 UI.
+Loads config, shows model setup dialog on first run (Cloud or Local),
+initialises all systems via provider_factory, launches PyQt6 UI.
 """
 import sys
 import logging
@@ -31,33 +32,40 @@ def load_config() -> dict:
         return yaml.safe_load(f) or {}
 
 
+def save_config(config: dict) -> None:
+    with open("config.yaml", "w") as f:
+        yaml.dump(config, f, default_flow_style=False)
+
+
 def ensure_storage(config: dict) -> None:
     base = Path(config.get("storage_path", "./storage"))
     for folder in ["database", "projects", "assets/characters",
-                   "assets/objects", "assets/environments", "cache", "logs"]:
+                   "assets/objects", "assets/environments",
+                   "cache", "logs", "models"]:
         (base / folder).mkdir(parents=True, exist_ok=True)
 
 
-def needs_api_key(config: dict) -> bool:
-    key = config.get("gemini_api_key", "")
-    return not key or key == "GEMINI_API_KEY_HERE"
+def needs_model_setup(config: dict) -> bool:
+    """Check whether ANY provider is properly configured."""
+    from src.providers.provider_factory import validate_provider_config
+    is_valid, _ = validate_provider_config(config)
+    return not is_valid
 
 
-def show_api_key_dialog(config: dict) -> dict:
-    from src.ui.api_key_dialog import APIKeyDialog
-    dialog = APIKeyDialog(config)
+def show_model_setup_dialog(config: dict) -> dict:
+    from src.ui.model_setup_dialog import ModelSetupDialog
+    dialog = ModelSetupDialog(config)
     if dialog.exec():
         config = dialog.get_updated_config()
-        with open("config.yaml", "w") as f:
-            yaml.dump(config, f, default_flow_style=False)
-        logger.info("API key saved")
+        save_config(config)
+        logger.info(f"Model configured: {config.get('llm_provider')}")
     return config
 
 
 def build_pipeline(config: dict):
-    """Wire all pipeline components. Every component receives config dict."""
+    """Wire all pipeline components using provider_factory — config dict drives everything."""
     from src.core.world_state.world_state import WorldStateManager
-    from src.providers.gemini_provider import GeminiProvider
+    from src.providers.provider_factory import get_llm_provider, get_vision_provider
     from src.providers.imagen_provider import ImagenProvider
     from src.core.asset_manager.asset_manager import AssetManager
     from src.core.scene_composer.scene_composer import SceneComposer
@@ -66,16 +74,19 @@ def build_pipeline(config: dict):
     from src.core.director.director import Director
     from src.core.orchestrator.orchestrator import PipelineOrchestrator
 
-    world_state    = WorldStateManager(config)
-    llm_provider   = GeminiProvider(config)
+    world_state     = WorldStateManager(config)
+    llm_provider    = get_llm_provider(config)
+    vision_provider = get_vision_provider(config)
+
+    # Image generation always tries Imagen if a Gemini key exists; otherwise
+    # the AssetManager will log a clear error when generation is attempted.
     image_provider = ImagenProvider(config)
+
     asset_manager  = AssetManager(config, image_provider)
     scene_composer = SceneComposer(config)
-    validator_mgr  = ValidatorManager(llm_provider, llm_provider)
+    validator_mgr  = ValidatorManager(llm_provider, vision_provider)
     director       = Director(llm_provider, world_state)
-
-    # RepairEngine gets world_state directly — not via asset_manager
-    repair_engine = RepairEngine(asset_manager, scene_composer, director, world_state)
+    repair_engine  = RepairEngine(asset_manager, scene_composer, director, world_state)
 
     orchestrator = PipelineOrchestrator(
         config, world_state, asset_manager,
@@ -93,8 +104,8 @@ def main() -> None:
     app.setApplicationName("AI Production Studio")
     app.setStyle("Fusion")
 
-    if needs_api_key(config):
-        config = show_api_key_dialog(config)
+    if needs_model_setup(config):
+        config = show_model_setup_dialog(config)
 
     from src.ui.main_window import MainWindow
 
@@ -105,6 +116,20 @@ def main() -> None:
         director = orchestrator = world_state = asset_manager = None
 
     window = MainWindow(config, world_state, orchestrator)
+
+    # Wire "change model" action from the menu to re-open setup dialog
+    def reconfigure_model():
+        nonlocal config, director, orchestrator, world_state, asset_manager
+        config = show_model_setup_dialog(config)
+        try:
+            director, orchestrator, world_state, asset_manager = build_pipeline(config)
+            window.world_state = world_state
+            window.orchestrator = orchestrator
+            window.status.showMessage(f"Model switched to: {config.get('llm_provider')}")
+        except Exception as e:
+            logger.error(f"Rebuild after model switch failed: {e}", exc_info=True)
+
+    window.model_change_requested.connect(reconfigure_model)
 
     if orchestrator and director:
         def run_pipeline(prompt: str, target: str) -> None:
