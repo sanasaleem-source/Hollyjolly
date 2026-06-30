@@ -1,13 +1,10 @@
 """
 Gemini Provider Module
-Implements BaseLLM and BaseVisionModel utilizing the official google-generativeai SDK.
-Loads API key from config, supporting model aliases and fail-safe retries.
-
-Offline/mock mode (no API key configured) returns prompt-aware responses —
-it inspects the system prompt to determine which caller is asking (Director,
-StoryValidator, CharacterValidator, RepairEngine, etc.) and returns the correct
-shape of mock response for that specific caller, instead of always returning
-a story-plan JSON blob regardless of context.
+Implements BaseLLM and BaseVisionModel using the current `google-genai` SDK
+(google.generativeai was sunset Aug 31 2025 and is fully end-of-life — this
+provider was migrated off it). Loads API key from config, retries on
+transient failures, and falls back to context-aware offline mocks when no
+key is configured so the rest of the pipeline never crashes on a missing key.
 """
 
 import time
@@ -22,47 +19,52 @@ class GeminiProvider(BaseLLM, BaseVisionModel):
 
     def __init__(self, config: dict) -> None:
         self.api_key = config.get("gemini_api_key")
-        self.model_name = config.get("gemini_model", "gemini-1.5-pro")
+        # "gemini-flash-latest" auto-tracks the current default Flash model so
+        # this doesn't go stale every time Google rotates generations (the old
+        # hardcoded "gemini-1.5-pro" is fully shut down as of 2026).
+        self.model_name = config.get("gemini_model", "gemini-flash-latest")
         self.logger = logging.getLogger("GeminiProvider")
 
         self.initialized = False
+        self.client = None
         self._init_sdk()
 
     def _init_sdk(self) -> None:
-        """Loads and authenticates the google-generativeai module."""
+        """Loads and authenticates the google-genai client."""
         if not self.api_key or self.api_key == "GEMINI_API_KEY_HERE":
             self.logger.warning("Gemini API key is not configured. Running in offline/mock mode.")
             return
 
         try:
-            import google.generativeai as genai
-            genai.configure(api_key=self.api_key)
-            self.genai = genai
+            from google import genai
+            self.client = genai.Client(api_key=self.api_key)
             self.initialized = True
-            self.logger.info("Gemini SDK configured successfully.")
+            self.logger.info("Gemini (google-genai) client configured successfully.")
         except ImportError:
-            self.logger.warning("google-generativeai SDK is not installed. Gemini calls will fall back to mocks.")
+            self.logger.warning("google-genai SDK is not installed. Gemini calls will fall back to mocks.")
         except Exception as e:
-            self.logger.error(f"Error configuring Gemini SDK: {e}")
+            self.logger.error(f"Error configuring Gemini client: {e}")
 
     def generate(self, system_prompt: str, user_prompt: str) -> str:
-        """Generates text using gemini-1.5-pro with automatic exponential retries."""
+        """Generates text using the configured Gemini model with automatic exponential retries."""
         self.logger.info(f"Generating content using model: {self.model_name}")
 
         if not self.initialized:
             self.logger.info("Provider offline. Returning context-aware mock response.")
             return self._mock_response(system_prompt, user_prompt)
 
+        from google.genai import types
+
         max_retries = 3
         backoff = 2
 
         for attempt in range(max_retries):
             try:
-                model = self.genai.GenerativeModel(
-                    model_name=self.model_name,
-                    system_instruction=system_prompt
+                response = self.client.models.generate_content(
+                    model=self.model_name,
+                    contents=user_prompt,
+                    config=types.GenerateContentConfig(system_instruction=system_prompt),
                 )
-                response = model.generate_content(user_prompt)
                 return response.text.strip()
             except Exception as e:
                 self.logger.warning(f"Gemini generation attempt {attempt + 1} failed: {e}")
@@ -75,15 +77,20 @@ class GeminiProvider(BaseLLM, BaseVisionModel):
         return ""
 
     def analyze(self, image_bytes: bytes, question: str) -> str:
-        """Analyzes an image using Gemini multimodal vision model."""
+        """Analyzes an image using Gemini's multimodal vision capability."""
         self.logger.info("Analyzing image frame with Gemini Vision.")
         if not self.initialized:
             return self._mock_vision_response(question)
 
         try:
-            model = self.genai.GenerativeModel("gemini-1.5-flash")
-            image_data = {"mime_type": "image/png", "data": image_bytes}
-            response = model.generate_content([image_data, question])
+            from google.genai import types
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=[
+                    types.Part.from_bytes(data=image_bytes, mime_type="image/png"),
+                    question,
+                ],
+            )
             return response.text.strip()
         except Exception as e:
             self.logger.error(f"Gemini Vision analysis failed: {e}")
@@ -106,25 +113,20 @@ class GeminiProvider(BaseLLM, BaseVisionModel):
             return "No prior context available — offline mode."
 
         elif "contradiction" in sp:
-            # StoryValidator — always pass cleanly in offline mode
             return "NO_CONTRADICTIONS"
 
         elif "corrected shot description" in sp:
-            # RepairEngine story repair — echo back something usable, not JSON
             return "The shot continues as previously described, with the noted issue resolved."
 
         elif "image prompt" in sp:
-            # RepairEngine character repair — return a usable image prompt string
             return "A consistent depiction of the character matching their established appearance."
 
-        # Unknown caller — safe default, never echo raw JSON back to a text-expecting caller
         return "OK"
 
     def _mock_vision_response(self, question: str) -> str:
         """
         Route to the correct success token based on which validator is asking,
-        so offline mode always passes vision checks cleanly instead of returning
-        a string that matches none of the expected tokens.
+        so offline mode always passes vision checks cleanly.
         """
         q = (question or "").lower()
 
@@ -135,7 +137,7 @@ class GeminiProvider(BaseLLM, BaseVisionModel):
         elif "physics mistakes" in q or "physics" in q:
             return "PHYSICS_OK"
 
-        return "CONSISTENT"  # safe default
+        return "CONSISTENT"
 
     def _mock_story_parser_output(self, user_prompt: str) -> str:
         """Returns valid structured production plan JSON for offline prototyping."""
@@ -162,7 +164,7 @@ class GeminiProvider(BaseLLM, BaseVisionModel):
     {{
       "shot_id": "shot_002",
       "scene_id": "scene_001",
-      "description": "Camera moves close to John\'s face, displaying exhaustion.",
+      "description": "Camera moves close to John's face, displaying exhaustion.",
       "camera_angle": "Close-Up",
       "duration_seconds": 3.0,
       "lighting": "Golden Hour",

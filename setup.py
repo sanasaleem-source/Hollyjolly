@@ -127,7 +127,7 @@ def choose_model_setup():
         repo_id = input("  Enter HuggingFace repo ID (e.g. Qwen/Qwen2.5-3B-Instruct): ").strip()
         gemini_key = input("  (Optional) Gemini API key for vision validation, or leave blank: ").strip()
         return {
-            "llm_provider": "huggingface",
+            "text_provider": "huggingface",
             "hf_repo_id": repo_id,
             "gemini_api_key": gemini_key or "GEMINI_API_KEY_HERE",
         }
@@ -135,8 +135,9 @@ def choose_model_setup():
         print("\n  Get a free key at aistudio.google.com/app/apikey")
         key = input("  Enter your Gemini API key: ").strip()
         return {
-            "llm_provider": "gemini",
-            "image_provider": "imagen",
+            "text_provider": "gemini",
+            "vision_provider": "gemini",
+            "image_provider": "gemini",
             "gemini_api_key": key,
         }
 
@@ -144,11 +145,13 @@ def choose_model_setup():
 def write_config(godot_path, ffmpeg_path, model_choice):
     banner("Writing config.yaml")
     config = f"""# AI Production Studio — Configuration
-llm_provider: {model_choice.get("llm_provider", "gemini")}
-image_provider: {model_choice.get("image_provider", "imagen")}
+text_provider: {model_choice.get("text_provider", "gemini")}
+vision_provider: {model_choice.get("vision_provider", "gemini")}
+image_provider: {model_choice.get("image_provider", "gemini")}
 
 gemini_api_key: {model_choice.get("gemini_api_key", "GEMINI_API_KEY_HERE")}
-gemini_model: gemini-1.5-pro
+gemini_model: gemini-flash-latest
+gemini_image_model: gemini-2.5-flash-image
 
 hf_repo_id: {model_choice.get("hf_repo_id", "")}
 hf_device: auto
@@ -185,14 +188,13 @@ def self_test(model_choice):
             print(f"  ❌ {pkg} missing")
             errors.append(pkg)
 
-    if model_choice.get("llm_provider") == "gemini":
+    if model_choice.get("text_provider") == "gemini":
         key = model_choice.get("gemini_api_key", "")
         if key and key != "GEMINI_API_KEY_HERE":
             try:
-                import google.generativeai as genai
-                genai.configure(api_key=key)
-                model = genai.GenerativeModel("gemini-1.5-pro")
-                r = model.generate_content("Reply with just: OK")
+                from google import genai
+                client = genai.Client(api_key=key)
+                r = client.models.generate_content(model="gemini-flash-latest", contents="Reply with just: OK")
                 print("  ✅ Gemini API connected" if "OK" in r.text else "  ⚠️  Gemini responded unexpectedly")
             except Exception as e:
                 print(f"  ❌ Gemini API error: {e}")

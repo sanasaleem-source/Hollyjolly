@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 TEXT_PROVIDERS   = {"gemini", "huggingface", "ollama"}
 VISION_PROVIDERS = {"gemini", "huggingface", "ollama"}
-IMAGE_PROVIDERS  = {"imagen", "diffusers"}
+IMAGE_PROVIDERS  = {"gemini", "diffusers"}
 
 
 def get_text_provider(config: dict):
@@ -75,23 +75,25 @@ def get_image_provider(config: dict):
     Return the provider used for character/object/environment image generation.
     Independent API key from text_provider — set image_api_key separately.
     """
-    provider_type = config.get("image_provider", "imagen").lower()
+    provider_type = config.get("image_provider", "gemini").lower()
 
-    if provider_type == "imagen":
-        from src.providers.imagen_provider import ImagenProvider
+    # "imagen" kept as a legacy alias — Imagen is being shut down by Google,
+    # so it now routes to the same Gemini native image provider.
+    if provider_type in ("gemini", "imagen"):
+        from src.providers.gemini_image_provider import GeminiImageProvider
         image_config = dict(config)
         if config.get("image_api_key"):
-            image_config["imagen_api_key"] = config["image_api_key"]
-        return ImagenProvider(image_config)
+            image_config["gemini_api_key"] = config["image_api_key"]
+        return GeminiImageProvider(image_config)
 
     elif provider_type == "diffusers":
         from src.providers.diffusers_provider import DiffusersProvider
         return DiffusersProvider(config)
 
     else:
-        logger.warning(f"Unknown image_provider '{provider_type}' — defaulting to Imagen")
-        from src.providers.imagen_provider import ImagenProvider
-        return ImagenProvider(config)
+        logger.warning(f"Unknown image_provider '{provider_type}' — defaulting to Gemini")
+        from src.providers.gemini_image_provider import GeminiImageProvider
+        return GeminiImageProvider(config)
 
 
 def validate_provider_config(config: dict) -> tuple[bool, str]:
