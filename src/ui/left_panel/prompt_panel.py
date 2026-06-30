@@ -46,13 +46,12 @@ class PromptPanel(QWidget):
         layout.addWidget(QLabel("STORY PROMPT"))
 
         self.text_input = QTextEdit()
-        self.text_input.setPlaceholderText(
-            "Describe your story or scene...
-
-"
+        placeholder_text = (
+            "Describe your story or scene...\n\n"
             "Example: A detective in 1940s rain-soaked Chicago "
             "discovers a clue at an abandoned warehouse."
         )
+        self.text_input.setPlaceholderText(placeholder_text)
         self.text_input.setMinimumHeight(100)
         layout.addWidget(self.text_input)
 
@@ -63,7 +62,7 @@ class PromptPanel(QWidget):
         self.target_selector.addItems(["All shots", "Scene 1", "Shot 1-01"])
         bottom.addWidget(self.target_selector, stretch=1)
 
-        self.submit_btn = QPushButton("Generate ▶")
+        self.submit_btn = QPushButton("Generate \u25B6")
         self.submit_btn.clicked.connect(self._on_submit)
         bottom.addWidget(self.submit_btn)
 
