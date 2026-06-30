@@ -4,7 +4,7 @@ Manages SQLite storage and retrieval of Object/Prop records.
 """
 
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from pydantic import BaseModel
 
@@ -43,7 +43,7 @@ class ObjectDB:
 
     def upsert_object(self, obj: ObjectModel) -> ObjectModel:
         """Inserts or updates an object state record in the database."""
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("""
