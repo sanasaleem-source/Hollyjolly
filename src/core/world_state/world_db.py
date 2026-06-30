@@ -5,7 +5,7 @@ Manages SQLite storage and retrieval of World Settings and events.
 
 import sqlite3
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 
@@ -46,7 +46,7 @@ class WorldDB:
 
     def upsert_world_event(self, event: WorldEventModel) -> WorldEventModel:
         """Inserts or updates a world setting record in the database."""
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("""
