@@ -1,10 +1,23 @@
-# AI Production Studio Phase 1 Requirements
+# AI Production Studio — Dependencies
+
+# Core
 pyyaml>=6.0.1
 pydantic>=2.5.3
-google-generativeai>=0.3.2
-opentimelineio>=0.15.0
-usd-core>=23.11
 PyQt6>=6.6.1
-pytest>=7.4.3
+PyQt6-Multimedia>=6.6.1
 requests>=2.31.0
+pytest>=7.4.3
 
+# Cloud AI provider
+google-generativeai>=0.3.2
+
+# Local AI provider (HuggingFace)
+huggingface_hub>=0.20.3
+transformers>=4.38.0
+torch>=2.2.0
+accelerate>=0.27.0
+sentencepiece>=0.1.99
+
+# Scene / timeline interchange
+usd-core>=23.11
+opentimelineio>=0.15.0
