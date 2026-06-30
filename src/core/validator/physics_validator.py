@@ -1,17 +1,18 @@
 """
 Physics Validator — checks for obvious physics violations in rendered frames.
-Uses centralised prompts from src/providers/prompts.py.
+Uses centralised, model-neutral prompts and lenient response matching.
 """
 import logging
 from pathlib import Path
 from src.core.validator.base_validator import BaseValidator, ValidationResult
+from src.core.validator.response_matching import matches_success_token
 from src.providers.prompts import PHYSICS_VALIDATOR_SYSTEM, PHYSICS_VALIDATOR_USER
 
 logger = logging.getLogger(__name__)
 
 
 class PhysicsValidator(BaseValidator):
-    """Validates basic physics sanity using Gemini Vision."""
+    """Validates basic physics sanity using a vision-capable provider."""
 
     def __init__(self, vision_provider) -> None:
         self.vision = vision_provider
@@ -29,7 +30,7 @@ class PhysicsValidator(BaseValidator):
             with open(frame_path, "rb") as f:
                 image_bytes = f.read()
             result = self.vision.analyze(image_bytes, user)
-            if "PHYSICS_OK" in result.upper():
+            if matches_success_token(result, "PHYSICS_OK"):
                 return ValidationResult(passed=True)
             return ValidationResult(passed=False, failures=[f"[physics] {result.strip()}"], severity="warning")
         except Exception as e:
