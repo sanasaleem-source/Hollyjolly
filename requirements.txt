@@ -8,15 +8,18 @@ PyQt6-Multimedia>=6.6.1
 requests>=2.31.0
 pytest>=7.4.3
 
-# Cloud AI provider
+# Cloud AI provider (text, vision, image)
 google-generativeai>=0.3.2
 
-# Local AI provider (HuggingFace)
+# Local AI provider — text/vision (HuggingFace)
 huggingface_hub>=0.20.3
 transformers>=4.38.0
 torch>=2.2.0
 accelerate>=0.27.0
 sentencepiece>=0.1.99
+
+# Local AI provider — image generation (Stable Diffusion family)
+diffusers>=0.27.0
 
 # Scene / timeline interchange
 usd-core>=23.11
