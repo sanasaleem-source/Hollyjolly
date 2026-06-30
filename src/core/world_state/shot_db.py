@@ -5,7 +5,7 @@ Manages SQLite storage and retrieval of individual Shot statuses, render outputs
 
 import sqlite3
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 
@@ -48,7 +48,7 @@ class ShotDB:
 
     def upsert_shot(self, shot: ShotModel) -> ShotModel:
         """Inserts or updates a shot record in the database."""
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("""
