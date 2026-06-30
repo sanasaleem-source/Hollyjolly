@@ -1,7 +1,7 @@
 """
 AI Production Studio — Entry Point.
-Loads config, shows model setup dialog on first run (Cloud or Local),
-initialises all systems via provider_factory, launches PyQt6 UI.
+Loads config, shows model setup dialog on first run, initialises all systems
+via provider_factory (three independent slots: text, vision, image), launches UI.
 """
 import sys
 import logging
@@ -46,7 +46,6 @@ def ensure_storage(config: dict) -> None:
 
 
 def needs_model_setup(config: dict) -> bool:
-    """Check whether ANY provider is properly configured."""
     from src.providers.provider_factory import validate_provider_config
     is_valid, _ = validate_provider_config(config)
     return not is_valid
@@ -58,15 +57,19 @@ def show_model_setup_dialog(config: dict) -> dict:
     if dialog.exec():
         config = dialog.get_updated_config()
         save_config(config)
-        logger.info(f"Model configured: {config.get('llm_provider')}")
+        logger.info(
+            f"Models configured — text: {config.get('text_provider')}, "
+            f"vision: {config.get('vision_provider')}, image: {config.get('image_provider')}"
+        )
     return config
 
 
 def build_pipeline(config: dict):
-    """Wire all pipeline components using provider_factory — config dict drives everything."""
+    """Wire all pipeline components. Text, vision, and image providers are independent."""
     from src.core.world_state.world_state import WorldStateManager
-    from src.providers.provider_factory import get_llm_provider, get_vision_provider
-    from src.providers.imagen_provider import ImagenProvider
+    from src.providers.provider_factory import (
+        get_text_provider, get_vision_provider, get_image_provider
+    )
     from src.core.asset_manager.asset_manager import AssetManager
     from src.core.scene_composer.scene_composer import SceneComposer
     from src.core.validator.validator_manager import ValidatorManager
@@ -75,17 +78,14 @@ def build_pipeline(config: dict):
     from src.core.orchestrator.orchestrator import PipelineOrchestrator
 
     world_state     = WorldStateManager(config)
-    llm_provider    = get_llm_provider(config)
+    text_provider   = get_text_provider(config)
     vision_provider = get_vision_provider(config)
-
-    # Image generation always tries Imagen if a Gemini key exists; otherwise
-    # the AssetManager will log a clear error when generation is attempted.
-    image_provider = ImagenProvider(config)
+    image_provider  = get_image_provider(config)
 
     asset_manager  = AssetManager(config, image_provider)
     scene_composer = SceneComposer(config)
-    validator_mgr  = ValidatorManager(llm_provider, vision_provider)
-    director       = Director(llm_provider, world_state)
+    validator_mgr  = ValidatorManager(text_provider, vision_provider)
+    director       = Director(text_provider, world_state)
     repair_engine  = RepairEngine(asset_manager, scene_composer, director, world_state)
 
     orchestrator = PipelineOrchestrator(
@@ -117,7 +117,6 @@ def main() -> None:
 
     window = MainWindow(config, world_state, orchestrator)
 
-    # Wire "change model" action from the menu to re-open setup dialog
     def reconfigure_model():
         nonlocal config, director, orchestrator, world_state, asset_manager
         config = show_model_setup_dialog(config)
@@ -125,7 +124,7 @@ def main() -> None:
             director, orchestrator, world_state, asset_manager = build_pipeline(config)
             window.world_state = world_state
             window.orchestrator = orchestrator
-            window.status.showMessage(f"Model switched to: {config.get('llm_provider')}")
+            window.status.showMessage("Models updated")
         except Exception as e:
             logger.error(f"Rebuild after model switch failed: {e}", exc_info=True)
 
