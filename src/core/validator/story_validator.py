@@ -1,16 +1,17 @@
 """
 Story Validator — checks shot does not contradict earlier events.
-Uses centralised prompts from src/providers/prompts.py.
+Uses centralised, model-neutral prompts and lenient response matching.
 """
 import logging
 from src.core.validator.base_validator import BaseValidator, ValidationResult
+from src.core.validator.response_matching import matches_success_token
 from src.providers.prompts import STORY_VALIDATOR_SYSTEM, STORY_VALIDATOR_USER
 
 logger = logging.getLogger(__name__)
 
 
 class StoryValidator(BaseValidator):
-    """Validates story continuity using Gemini LLM."""
+    """Validates story continuity using a text-capable provider."""
 
     def __init__(self, llm_provider) -> None:
         self.llm = llm_provider
@@ -31,14 +32,12 @@ class StoryValidator(BaseValidator):
         )
 
         user = STORY_VALIDATOR_USER.format(
-            shot_history=history_text,
-            shot_id=shot_id,
-            shot_description=full_desc
+            shot_history=history_text, shot_id=shot_id, shot_description=full_desc
         )
 
         try:
             result = self.llm.generate(STORY_VALIDATOR_SYSTEM, user)
-            if "NO_CONTRADICTIONS" in result.upper():
+            if matches_success_token(result, "NO_CONTRADICTIONS"):
                 return ValidationResult(passed=True)
             return ValidationResult(passed=False, failures=[f"[story] {result.strip()}"], severity="error")
         except Exception as e:
