@@ -1,17 +1,18 @@
 """
 Style Validator — checks colour/tone consistency across shots.
-Uses centralised prompts from src/providers/prompts.py.
+Uses centralised, model-neutral prompts and lenient response matching.
 """
 import logging
 from pathlib import Path
 from src.core.validator.base_validator import BaseValidator, ValidationResult
+from src.core.validator.response_matching import matches_success_token
 from src.providers.prompts import STYLE_VALIDATOR_SYSTEM, STYLE_VALIDATOR_USER
 
 logger = logging.getLogger(__name__)
 
 
 class StyleValidator(BaseValidator):
-    """Validates visual style consistency using Gemini Vision."""
+    """Validates visual style consistency using a vision-capable provider."""
 
     def __init__(self, vision_provider) -> None:
         self.vision = vision_provider
@@ -32,7 +33,7 @@ class StyleValidator(BaseValidator):
             with open(frame_path, "rb") as f:
                 image_bytes = f.read()
             result = self.vision.analyze(image_bytes, user)
-            if "STYLE_CONSISTENT" in result.upper():
+            if matches_success_token(result, "STYLE_CONSISTENT"):
                 return ValidationResult(passed=True)
             return ValidationResult(passed=False, failures=[f"[style] {result.strip()}"], severity="warning")
         except Exception as e:
