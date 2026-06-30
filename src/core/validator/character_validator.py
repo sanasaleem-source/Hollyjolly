@@ -1,24 +1,25 @@
 """
 Character Validator — checks rendered frames match World State descriptions.
-Uses centralised prompts from src/providers/prompts.py.
+Uses centralised, model-neutral prompts and lenient response matching.
 """
 import json
 import logging
 from pathlib import Path
 from src.core.validator.base_validator import BaseValidator, ValidationResult
+from src.core.validator.response_matching import matches_success_token
 from src.providers.prompts import CHARACTER_VALIDATOR_SYSTEM, CHARACTER_VALIDATOR_USER
 
 logger = logging.getLogger(__name__)
 
 
 class CharacterValidator(BaseValidator):
-    """Validates character appearance consistency using Gemini Vision."""
+    """Validates character appearance consistency using a vision-capable provider."""
 
     def __init__(self, vision_provider) -> None:
         self.vision = vision_provider
 
     def validate(self, shot_data: dict, world_state) -> ValidationResult:
-        shot_id    = shot_data.get("shot_id", "unknown")
+        shot_id     = shot_data.get("shot_id", "unknown")
         render_path = shot_data.get("render_path", "")
         characters  = shot_data.get("characters_present", [])
 
@@ -41,17 +42,15 @@ class CharacterValidator(BaseValidator):
             injuries   = json.dumps(char.injuries)   if isinstance(char.injuries,   dict) else str(char.injuries)
 
             question = CHARACTER_VALIDATOR_USER.format(
-                character_name=char_name,
-                appearance=appearance,
-                clothing=clothing,
-                injuries=injuries
+                character_name=char_name, appearance=appearance,
+                clothing=clothing, injuries=injuries
             )
 
             try:
                 with open(frame_path, "rb") as f:
                     image_bytes = f.read()
                 result = self.vision.analyze(image_bytes, question)
-                if "CONSISTENT" not in result.upper():
+                if not matches_success_token(result, "CONSISTENT"):
                     failures.append(f"[character] {char_name}: {result.strip()}")
             except Exception as e:
                 logger.error(f"Vision call failed for {char_name}: {e}")
