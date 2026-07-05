@@ -1,11 +1,11 @@
 """
-Gemini Provider — uses the current google-genai SDK (google-genai>=0.3.0).
-The old google-generativeai SDK is end-of-life and removed from requirements.txt.
+Gemini Provider — uses the current google-genai SDK (google-genai>=1.0.0).
+The old google-generativeai SDK is end-of-life. Do NOT use it.
 New API: from google import genai; client = genai.Client(api_key=...)
 """
+import json
 import time
 import logging
-from typing import Optional
 from src.providers.base_llm import BaseLLM
 from src.providers.base_vision import BaseVisionModel
 
@@ -35,19 +35,15 @@ class GeminiProvider(BaseLLM, BaseVisionModel):
         except Exception as e:
             self.logger.error(f"Gemini SDK init failed: {e}")
 
-    # ── Text generation ─────────────────────────────────────────────────────────
-
     def generate(self, system_prompt: str, user_prompt: str) -> str:
         if not self.online:
             return self._mock_response(system_prompt, user_prompt)
-
         contents = f"{system_prompt}\n\n{user_prompt}" if system_prompt else user_prompt
         max_retries, backoff = 3, 2
         for attempt in range(max_retries):
             try:
                 response = self._client.models.generate_content(
-                    model=self.model_name,
-                    contents=contents
+                    model=self.model_name, contents=contents
                 )
                 return response.text.strip()
             except Exception as e:
@@ -58,8 +54,6 @@ class GeminiProvider(BaseLLM, BaseVisionModel):
                     self.logger.error("All Gemini retries exhausted.")
                     raise
         return ""
-
-    # ── Vision ──────────────────────────────────────────────────────────────────
 
     def analyze(self, image_bytes: bytes, question: str) -> str:
         if not self.online:
@@ -77,8 +71,6 @@ class GeminiProvider(BaseLLM, BaseVisionModel):
             self.logger.error(f"Gemini vision failed: {e}")
             raise
 
-    # ── Offline mock dispatch ────────────────────────────────────────────────────
-
     def _mock_response(self, system_prompt: str, user_prompt: str) -> str:
         sp = (system_prompt or "").lower()
         if "list of shots" in sp or "film director" in sp:
@@ -95,30 +87,31 @@ class GeminiProvider(BaseLLM, BaseVisionModel):
 
     def _mock_vision_response(self, question: str) -> str:
         q = (question or "").lower()
-        if "style" in q:      return "STYLE_CONSISTENT"
-        if "physics" in q:    return "PHYSICS_OK"
+        if "style" in q:   return "STYLE_CONSISTENT"
+        if "physics" in q: return "PHYSICS_OK"
         return "CONSISTENT"
 
     def _mock_story_plan(self, user_prompt: str) -> str:
         topic = "space mission" if "space" in user_prompt.lower() else "detective story"
-        return f\'\'\'{{
-  "title": "A Cinematic {topic.title()}",
-  "shots": [
-    {{
-      "shot_id": "shot_001", "scene_id": "scene_001",
-      "description": "Wide establishing shot of the location.",
-      "camera_angle": "Wide", "duration_seconds": 4.5,
-      "lighting": "Low-Key", "characters_present": ["John"],
-      "objects_present": [], "dialogue": null,
-      "action": "John surveys the scene carefully."
-    }},
-    {{
-      "shot_id": "shot_002", "scene_id": "scene_001",
-      "description": "Close-up on the protagonist face.",
-      "camera_angle": "Close-Up", "duration_seconds": 3.0,
-      "lighting": "Natural", "characters_present": ["John"],
-      "objects_present": [], "dialogue": "Something is wrong here.",
-      "action": "John narrows his eyes and steps forward."
-    }}
-  ]
-}}\'\'\'
+        plan = {
+            "title": f"A Cinematic {topic.title()}",
+            "shots": [
+                {
+                    "shot_id": "shot_001", "scene_id": "scene_001",
+                    "description": "Wide establishing shot of the location.",
+                    "camera_angle": "Wide", "duration_seconds": 4.5,
+                    "lighting": "Low-Key", "characters_present": ["John"],
+                    "objects_present": [], "dialogue": None,
+                    "action": "John surveys the scene carefully."
+                },
+                {
+                    "shot_id": "shot_002", "scene_id": "scene_001",
+                    "description": "Close-up on the protagonist face.",
+                    "camera_angle": "Close-Up", "duration_seconds": 3.0,
+                    "lighting": "Natural", "characters_present": ["John"],
+                    "objects_present": [], "dialogue": "Something is wrong here.",
+                    "action": "John narrows his eyes and steps forward."
+                }
+            ]
+        }
+        return json.dumps(plan)
