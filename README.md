@@ -1,70 +1,106 @@
 # 🎬 AI Production Studio
 
-A desktop application that takes a story prompt and turns it into a fully produced video — planned, cast, rendered, validated, and exported, with almost no manual work. It runs entirely on your own machine. No servers, no subscriptions, no hosting. Once installed, it's yours.
-
-This started after watching a video essay from the YouTube channel **Slow English** and thinking: *can this be better, and can it be automated end to end?* That question became this project.
-
-**Special thanks to Ayyan**, who gave the original idea its scope and direction before any of this was built.
+> Built by a 16-year-old from Pakistan who watched a YouTube channel and thought: *I can make something better than this.*
 
 ---
 
-## What it actually does
+## The story
 
-You type a story idea. From there, the studio:
+I came across a YouTube channel called **Slow English** — videos with simple narration, clear visuals, built for language learners. Good concept. But I kept thinking: what if the whole production pipeline could be automated? What if you described a story and a piece of software handled everything — planning, characters, scenes, rendering, consistency, export — on its own?
 
-1. **Plans it** — breaks your idea into individual shots, each with its own camera angle, lighting, characters, and action (the *Director*)
-2. **Remembers everything** — tracks every character's appearance, clothing, injuries, and history across the entire project so nothing is ever inconsistent shot to shot (the *World State*)
-3. **Builds the assets** — generates character art, props, and environments, reusing what already exists instead of regenerating it every time (the *Asset Manager*)
-4. **Assembles the scene** — positions cameras, characters, and lighting into a real 3D scene (the *Scene Composer*, using OpenUSD)
-5. **Renders it** — spawns Godot 4 headless to render actual frames
-6. **Checks its own work** — four separate validators check character consistency, story continuity, visual style, and basic physics
-7. **Fixes what's broken** — if something fails validation, only that specific problem gets repaired, not the whole shot
-8. **Exports it** — assembles the final video with FFmpeg, plus a professional timeline (OpenTimelineIO) you can import into Premiere, DaVinci Resolve, or Final Cut
+So I built it.
 
-You watch all of this happen in a two-panel interface: one side shows your prompt, your asset library, and the current state of every character. The other side is a CapCut-style timeline showing every shot as it gets built, with failed shots clearly flagged so you know exactly where to step in.
+I'm **Sana**, 16, currently in my pre-first-year at Punjab Colleges in Pakistan. I have no professional studio, no team, no budget. Just a phone, a laptop, and an idea that wouldn't leave me alone.
+
+The scope of the project was shaped early on by my friend **Ayyan**, who pushed me to think bigger than I initially was. A lot of what this became is because of those early conversations. Thank you Ayyan.
+
+This is now open source. Take it, learn from it, build on it.
 
 ---
 
-## Why this is different
+## What this is
 
-Most AI video tools work like this: prompt → generate → hope it stays consistent.
+**AI Production Studio** takes a story prompt and turns it into a produced video — planned, cast, rendered, validated, and exported, almost entirely on its own.
 
-This works like this: prompt → plan → remember → build → assemble → generate → validate → repair → export.
+You type: *"A detective in 1940s rain discovers a clue at an abandoned warehouse."*
 
-The AI models are not the product here — they're interchangeable specialists that plug into the pipeline. The software itself, with its memory of every character and every decision, is what you actually own.
+The software:
+1. Breaks it into shots, each with camera angles, lighting, characters, and action
+2. Remembers every character's appearance, clothing, and injuries across the whole project
+3. Generates artwork for every character, object, and environment
+4. Assembles 3D scenes using real industry-standard formats (OpenUSD)
+5. Renders frames using Godot 4 headless
+6. Checks its own work — four separate validators catch inconsistencies automatically
+7. Repairs only what failed, not the whole shot
+8. Exports the final video with FFmpeg, plus a professional timeline you can open in Premiere or DaVinci Resolve
+
+The interface is a two-panel desktop app: one side shows your assets and the current state of every character, the other is a CapCut-style timeline where you watch each shot get built in real time.
 
 ---
 
-## Model flexibility — bring your own, or run locally
+## Why this is different from every other AI video tool
 
-You are never locked into one AI provider, and you don't need to pay for anything to use this.
+Most AI video tools:
+```
+Prompt → Generate → Hope it stays consistent
+```
 
-There are **three independent model slots**, each configurable separately:
+This:
+```
+Prompt → Director → Shot Plan → World Memory
+       → Asset Management → Scene Assembly
+       → AI Generation → Validation → Repair → Export
+```
 
-| Slot | Job | Options |
+The AI models are not the product. The **pipeline** is the product. Gemini, Stable Diffusion, whatever comes next — they're interchangeable parts that plug into this system. When a better model comes out, you swap it in. The memory, the continuity, the validation, the repair logic — that all stays and keeps working.
+
+---
+
+## Model flexibility — bring your own, run it locally, or mix
+
+Three independent model slots, each configurable separately:
+
+| Slot | What it does | Options |
 |---|---|---|
-| **Text** | Story planning, continuity, repair | Gemini (cloud) · Any HuggingFace model (local) · Ollama (local) |
-| **Vision** | Checks rendered frames against the script | Gemini (cloud) · HuggingFace (local, limited) · Ollama / LLaVA (local) |
-| **Image** | Generates character, object, and environment art | Imagen (cloud) · Any Stable Diffusion model via HuggingFace (local) |
+| **Text** | Story planning, repair, continuity | Gemini · HuggingFace (local) · Ollama (local) |
+| **Vision** | Checks rendered frames against the script | Gemini · HuggingFace · Ollama / LLaVA |
+| **Image** | Generates character and environment art | Google Imagen · Stable Diffusion (local) |
 
-Mix and match freely. Use Gemini for everything, or run a local HuggingFace model for text and stay fully offline, or use cloud for images but local for text — any combination works. Each slot can even use a **different API key** if you want to separate billing or rate limits.
+You can use cloud for everything, run everything locally with no API key at all, or mix — local text model with cloud vision, for example. Each slot takes its own API key if you want to separate billing.
 
-No API key? No problem. Paste any HuggingFace repo ID into the local model field and the app will download and run it on your own machine — no internet required after that point, no cost, full privacy.
+No API key? Paste any HuggingFace repo ID. The app downloads the model to your machine and runs it there. After that: no internet required, no cost, full privacy.
+
+---
+
+## What's been tested and verified
+
+The following was run and verified in a real Python environment — not just syntax-checked:
+
+- ✅ WorldStateManager: saves and retrieves characters, objects, world events, and shots from SQLite
+- ✅ Director: parses a story prompt into a structured shot plan with valid schema
+- ✅ Director: generates a full ordered task schedule from that plan
+- ✅ AssetManager: generates an asset on first call, returns the same path on second call (reuse logic works)
+- ✅ ValidatorManager: all four validators skip gracefully when no frames exist (no crash)
+- ✅ Response matching: fuzzy token detection works for small/local model output variation
+- ✅ **Full end-to-end pipeline**: prompt → plan → assets → scene → render placeholder → validate → all shots marked `done`, zero repair attempts needed
+
+The only thing not testable without your own machine: real Gemini API calls, real Godot rendering, real Blender rigging. The code paths are there and wired — they just need the tools installed.
 
 ---
 
 ## Requirements
 
-- **Python 3.11 or newer**
-- **Windows, macOS, or Linux**
-- Roughly 5–10 GB free disk space if using local models (more for larger models)
-- A GPU is recommended for local models but not required — CPU mode works, just slower
+- Python 3.11 or newer
+- Windows, macOS, or Linux
+- 1–2 GB disk space for the app itself
+- Additional space if using local models (3–30 GB depending on model size)
+- A GPU is recommended for local image/text models but not required — CPU works, just slower
 
 ---
 
 ## Installation
 
-### Option 1 — One-click setup (recommended)
+### Option 1 — One command (recommended)
 
 ```bash
 git clone https://github.com/sanasaleem-source/Hollyjolly.git
@@ -73,26 +109,42 @@ python setup.py
 ```
 
 `setup.py` will:
-- Check your Python version
-- Install every Python dependency automatically
-- Download and install Godot 4 and FFmpeg into a local `bin/` folder
-- Ask you to choose Cloud (Gemini) or Local (HuggingFace) for your AI model
-- Write your `config.yaml` automatically
+- Verify your Python version
+- Install core Python dependencies
+- Ask whether you have a GPU (installs the right version of PyTorch)
+- Download and install Godot 4 into `bin/`
+- Download and install FFmpeg into `bin/`
+- Ask you to choose Cloud (Gemini) or Local (HuggingFace) for each model slot
+- Write `config.yaml` with all paths and keys filled in
 - Run a self-test to confirm everything is working
 
-### Option 2 — Manual setup
+### Option 2 — Manual
 
 ```bash
 git clone https://github.com/sanasaleem-source/Hollyjolly.git
 cd Hollyjolly
-pip install -r requirements.txt --break-system-packages
+pip install pyyaml pydantic PyQt6 requests google-genai huggingface_hub
 ```
 
-Then manually:
-- Install [Godot 4](https://godotengine.org/download) and make sure it's on your PATH, or set `godot_path` in `config.yaml`
-- Install [FFmpeg](https://ffmpeg.org/download.html) the same way
-- (Optional) Install [Blender](https://www.blender.org/download/) if you want advanced 3D asset rigging
-- Copy `config.yaml` and fill in your model choice — see Configuration below
+Then install the tools you need:
+- [Godot 4](https://godotengine.org/download) — for rendering
+- [FFmpeg](https://ffmpeg.org/download.html) — for video export
+- [Blender](https://www.blender.org/download/) — optional, for advanced 3D asset rigging
+
+For local AI models (optional):
+```bash
+# GPU (NVIDIA)
+pip install torch transformers accelerate sentencepiece diffusers
+
+# CPU only (no GPU, smaller download)
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install transformers accelerate sentencepiece diffusers
+```
+
+For OpenUSD and timeline export (optional, Phase 9+):
+```bash
+pip install usd-core opentimelineio
+```
 
 ---
 
@@ -102,91 +154,155 @@ Then manually:
 python main.py
 ```
 
-The first time you launch, a setup screen will ask you to configure your Text, Vision, and Image models if you skipped that step during `setup.py`. After that, it remembers your settings — just run `python main.py` from then on.
+The first time you launch, a setup screen walks you through configuring your three model slots if you skipped `setup.py`. After that it remembers everything.
 
-You can change your model configuration at any time from **Settings → Change AI Model** inside the app.
+Change models at any time from **Settings → Change AI Model** inside the app.
 
-### Building a standalone .exe (Windows)
+### Get a free Gemini API key
 
-If you want a single installable application instead of running from source:
+Go to [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) — it's free and takes 30 seconds.
+
+### Browse local models
+
+Go to [huggingface.co/models](https://huggingface.co/models?pipeline_tag=text-generation) and filter by `text-generation`. Good starting points:
+- `Qwen/Qwen2.5-3B-Instruct` — small, fast, runs on CPU
+- `microsoft/Phi-3-mini-4k-instruct` — very capable for its size
+- `stabilityai/sdxl-turbo` — fast local image generation
+
+---
+
+## Building a distributable .exe (Windows)
 
 ```bash
 build.bat
 ```
 
-This uses PyInstaller to bundle everything — including FFmpeg — into `dist/AIProductionStudio/`. An Inno Setup script (`installer.iss`) is also included if you want to produce a proper Windows installer `.exe`.
-
-On macOS/Linux, use `build.sh` instead.
+Uses PyInstaller. Output goes to `dist/AIProductionStudio/`. An Inno Setup script (`installer.iss`) is included to build a proper Windows installer. On macOS/Linux, use `build.sh`.
 
 ---
 
-## Configuration
+## Configuration reference
 
-All settings live in `config.yaml`, generated automatically by `setup.py`. Key sections:
+`config.yaml` is generated by `setup.py`. Key fields:
 
 ```yaml
-text_provider: gemini          # gemini | huggingface | ollama
-gemini_api_key: YOUR_KEY_HERE
-hf_repo_id: ""                 # used if text_provider: huggingface
-
+# Which provider handles each role
+text_provider:   gemini      # gemini | huggingface | ollama
 vision_provider: gemini
-vision_gemini_api_key: ""      # optional — separate key for vision only
+image_provider:  imagen      # imagen | diffusers
 
-image_provider: imagen         # imagen | diffusers
-hf_image_repo_id: ""           # used if image_provider: diffusers
+# Cloud keys (each slot can use a different key)
+gemini_api_key:        YOUR_KEY_HERE
+vision_gemini_api_key: ""   # blank = reuse gemini_api_key
+image_api_key:         ""   # blank = reuse gemini_api_key
 
-godot_path: godot
+# Local model repos (used when provider is huggingface/diffusers)
+hf_repo_id:       ""    # text model, e.g. Qwen/Qwen2.5-3B-Instruct
+hf_image_repo_id: ""    # image model, e.g. stabilityai/sdxl-turbo
+
+# Tool paths (setup.py fills these in automatically)
+godot_path:   ./bin/godot
+ffmpeg_path:  ./bin/ffmpeg
 blender_path: blender
-ffmpeg_path: ./bin/ffmpeg
 
-max_repair_attempts: 3
-render_fps: 24
+# Pipeline tuning
+max_repair_attempts:    3
+render_fps:             24
+render_width:           1920
+render_height:          1080
 ```
 
-Get a free Gemini API key at [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey).
+---
 
-Browse local models at [huggingface.co/models](https://huggingface.co/models).
+## How the UI works
+
+**Left panel (35%)**
+- Prompt area — type your story or target a specific shot that needs fixing
+- Asset browser — every generated asset organised by type and version (`john/v1`, `john/v2`)
+- World State viewer — current clothing, injuries, and status of every character
+
+**Right panel (65%)**
+- Timeline — every shot laid out as a horizontal strip
+  - Grey = placeholder (not yet generated)
+  - Green border = done
+  - Red border = failed validation (click to see why)
+- Shot viewer — click any shot to see its frames, the prompt used, asset versions, and validation results
+- Preview player — watch the assembled video
+- Export button
 
 ---
 
-## How the interface works
-
-**Left panel:**
-- Type your story prompt, or target a specific shot if something needs fixing
-- Browse every asset you've generated, organized by character/object/environment and version
-- See the current state of every character — clothing, injuries, last seen
-
-**Right panel:**
-- A horizontal timeline of every shot, shown as placeholders until rendered
-- Completed shots show their thumbnail; failed shots are outlined in red so you immediately know what needs attention
-- Click any shot to see its frames, the prompt that generated it, and its validation results
-- A preview player for the final assembled video, with an export button
-
----
-
-## Project structure
+## Code structure
 
 ```
 src/
-  core/            — Director, World State, Asset Manager, Orchestrator, Validators, Repair Engine
-  providers/        — All AI provider integrations (Gemini, HuggingFace, Ollama, Imagen, Diffusers)
-  integrations/     — Godot, Blender, FFmpeg, OpenUSD, OpenTimelineIO bridges
-  ui/               — PyQt6 desktop interface
-storage/            — Your projects, generated assets, and local model cache (not committed to git)
-godot/              — The headless rendering script Godot runs
-tests/              — Unit tests for World State and core logic
+  core/
+    director/          Story parser, task planner, continuity advisor
+    world_state/       SQLite-backed memory: characters, objects, world, shots
+    asset_manager/     Exist-reuse-generate-version logic
+    orchestrator/      Task queue, process manager, repair loop
+    scene_composer/    Builds USD scenes and Godot JSON per shot
+    validator/         4 independent validators + response matching
+    repair/            Targeted repair engine (fixes only what failed)
+
+  providers/
+    gemini_provider.py      Text + vision via google-genai SDK
+    imagen_provider.py      Image generation via Google Imagen
+    huggingface_provider.py Local text/vision models
+    diffusers_provider.py   Local image generation (Stable Diffusion)
+    ollama_provider.py      Local models via Ollama
+    provider_factory.py     Single place that wires text/vision/image slots
+    prompts.py              All model prompts — model-neutral, one file
+
+  integrations/
+    godot/             Headless render bridge + GDScript render script
+    blender/           Asset rigging and simulation
+    ffmpeg/            Frame assembly and video encoding
+    usd/               OpenUSD scene read/write
+    otio/              OpenTimelineIO export (EDL, .otio)
+
+  ui/
+    main_window.py          Two-panel layout
+    model_setup_dialog.py   First-launch model configuration
+    left_panel/             Prompt, asset browser, world viewer
+    right_panel/            Timeline, shot viewer, preview player
+
+godot/
+  render_scene.gd     Reads scene JSON and renders frames headless
+
+storage/              Generated at runtime — projects, assets, cache, logs
+tests/                pytest suite for World State operations
+setup.py              One-click installer
+build.bat / build.sh  PyInstaller packaging
 ```
 
 ---
 
-## Status
+## Current status
 
-This is an actively developed personal project, not a finished commercial product. Core systems — story planning, World State memory, asset versioning, validation, and repair — are built and tested. Rendering quality depends entirely on the AI models you connect, and is expected to improve as those models do.
+The core systems are built and verified:
+- Story planning → World State memory → Asset generation → Scene composition → Validation → Repair → Export pipeline runs end to end
+- All four validators work and degrade gracefully when Godot hasn't rendered yet
+- The provider system supports full model swapping with no code changes
+- The installer, packaging, and configuration system are complete
+
+What improves with real hardware:
+- Godot rendering quality (currently falls back to AI-generated placeholder frames)
+- Image quality scales directly with which model you connect
+- Speed scales with GPU
+
+This is a real working system, not a demo. It's also version 1, built by one person. Contributions are welcome.
 
 ---
 
-## Credits
+## Credits and acknowledgements
 
-Inspired by a video from **Slow English** on YouTube, and built after wondering whether the idea behind it could be pushed further into something fully automated.
+**Sana Saleem** — built everything in this repo.
 
-Original idea and scope shaped with **Ayyan** — thank you for getting this started.
+**Ayyan** — shaped the scope and ambition of this project from the very first conversation. This would be a much smaller idea without you.
+
+**Slow English** (YouTube) — the original inspiration. Go watch the channel.
+
+---
+
+*Open source. MIT License. Built in Pakistan.*
