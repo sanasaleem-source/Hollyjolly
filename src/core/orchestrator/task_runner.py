@@ -13,21 +13,22 @@ class TaskRunner:
 
     def __init__(self, asset_manager, scene_composer, process_manager,
                  validator_manager, world_state, config: dict) -> None:
-        self.asset_manager    = asset_manager
-        self.scene_composer   = scene_composer
-        self.process_manager  = process_manager
+        self.asset_manager     = asset_manager
+        self.scene_composer    = scene_composer
+        self.process_manager   = process_manager
         self.validator_manager = validator_manager
-        self.world_state      = world_state
-        self.storage_path     = Path(config.get("storage_path", "./storage"))
-        self.logger           = logging.getLogger("TaskRunner")
+        self.world_state       = world_state
+        self.storage_path      = Path(config.get("storage_path", "./storage"))
+        self.godot_path        = config.get("godot_path", "")   # read from config, not task
+        self.logger            = logging.getLogger("TaskRunner")
 
     def execute_task(self, task: Dict[str, Any], shot_model: Any) -> Dict[str, Any]:
         t = task["type"]
         self.logger.info(f"Task {task.get('task_id')} ({t}) for {task['shot_id']}")
-        if t == "asset_resolution":   return self._run_asset_resolution(task, shot_model)
-        if t == "scene_composition":  return self._run_scene_composition(task, shot_model)
-        if t == "scene_rendering":    return self._run_scene_rendering(task, shot_model)
-        if t == "shot_validation":    return self._run_shot_validation(task, shot_model)
+        if t == "asset_resolution":  return self._run_asset_resolution(task, shot_model)
+        if t == "scene_composition": return self._run_scene_composition(task, shot_model)
+        if t == "scene_rendering":   return self._run_scene_rendering(task, shot_model)
+        if t == "shot_validation":   return self._run_shot_validation(task, shot_model)
         raise ValueError(f"Unknown task type: {t}")
 
     def _run_asset_resolution(self, task: Dict[str, Any], shot_model: Any) -> Dict[str, Any]:
@@ -37,8 +38,8 @@ class TaskRunner:
 
         data       = task.get("data", {})
         characters = data.get("characters", [])
-        objects    = data.get("objects",    [])
-        lighting   = data.get("lighting",   "Standard")
+        objects    = data.get("objects", [])
+        lighting   = data.get("lighting", "Standard")
         resolved   = {}
 
         for name in characters:
@@ -85,42 +86,62 @@ class TaskRunner:
         return {"status": "success", "resolved_assets": resolved}
 
     def _run_scene_composition(self, task: Dict[str, Any], shot_model: Any) -> Dict[str, Any]:
+        # Copy shot metadata onto model so scene_composer can use it
+        data = task.get("data", {})
+        if not hasattr(shot_model, "camera_angle") or not shot_model.camera_angle:
+            shot_model.camera_angle = data.get("camera_angle", "medium")
+        if not hasattr(shot_model, "duration_seconds") or not shot_model.duration_seconds:
+            shot_model.duration_seconds = data.get("duration_seconds", 3.0)
+
         result = self.scene_composer.compose_shot_scene(shot_model)
         shot_model.render_path = result.get("scene_json_path", "")
         return {"status": "success", "composer_paths": result}
 
     def _run_scene_rendering(self, task: Dict[str, Any], shot_model: Any) -> Dict[str, Any]:
         """
-        Produce at least one frame so the pipeline and UI have something to show.
-        Phase 1 generates a placeholder image from the AI image provider.
-        Godot headless rendering is invoked when godot_path is configured and valid.
+        Produce frames for this shot.
+        - If Godot is configured and the binary exists: runs real headless render.
+        - Otherwise: generates one AI image placeholder so the pipeline and UI
+          always have something to show regardless of Godot installation.
         """
         if not shot_model.render_path:
-            raise FileNotFoundError(f"No scene file for shot {shot_model.shot_id}")
+            raise FileNotFoundError(f"No scene JSON for shot {shot_model.shot_id}")
 
-        # Use config-driven storage path — never hardcoded
         output_dir = self.storage_path / "cache" / shot_model.shot_id
         output_dir.mkdir(parents=True, exist_ok=True)
         frame_file = output_dir / "frame_0000.png"
 
+        # Always generate a placeholder first so validation has something to check
         if not frame_file.exists():
-            prompt    = f"Cinematic film frame: {shot_model.shot_id} in scene {shot_model.scene_id}."
+            description = getattr(shot_model, "description", shot_model.shot_id)
+            prompt    = f"Cinematic film frame. {description}"
             img_bytes = self.asset_manager.image_provider.generate(prompt)
             frame_file.write_bytes(img_bytes)
+            self.logger.info(f"Placeholder frame written: {frame_file}")
 
-        # Attempt real Godot headless render — log warning if Godot not found
-        godot_path = task.get("godot_path") or ""
-        if godot_path and os.path.isfile(godot_path):
-            from src.integrations.godot.godot_bridge import GodotBridge
-            bridge = GodotBridge(self.process_manager, {"godot_path": godot_path})
-            frames = bridge.render_shot(shot_model.shot_id, {}, str(output_dir))
-            if frames:
-                self.logger.info(f"Godot rendered {len(frames)} frames for {shot_model.shot_id}")
+        # Attempt real Godot render on top if binary is available
+        godot_bin = self.godot_path
+        if godot_bin and os.path.isfile(godot_bin):
+            try:
+                # Load the scene JSON we built in scene_composition
+                import json as _json
+                with open(shot_model.render_path) as f:
+                    scene_data = _json.load(f)
+
+                from src.integrations.godot.godot_bridge import GodotBridge
+                bridge = GodotBridge(self.process_manager, {"godot_path": godot_bin})
+                frames = bridge.render_shot(shot_model.shot_id, scene_data, str(output_dir))
+                if frames:
+                    self.logger.info(f"Godot rendered {len(frames)} real frames for {shot_model.shot_id}")
+                else:
+                    self.logger.warning(f"Godot returned no frames for {shot_model.shot_id} — keeping placeholder")
+            except Exception as e:
+                self.logger.error(f"Godot render error for {shot_model.shot_id}: {e} — keeping placeholder")
         else:
-            self.logger.info(
-                f"Godot not found at {godot_path!r} — using placeholder frame. "
-                "Set godot_path in config.yaml to enable real rendering."
-            )
+            if godot_bin:
+                self.logger.warning(f"Godot binary not found at {godot_bin!r} — using placeholder.")
+            else:
+                self.logger.info("godot_path not set in config — using placeholder frame.")
 
         shot_model.render_path = str(output_dir)
         return {"status": "success", "output_directory": str(output_dir)}
