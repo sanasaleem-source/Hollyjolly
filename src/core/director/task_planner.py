@@ -1,69 +1,74 @@
 """
-Task Planner Module
-Converts structured shots into a flat, ordered task list for the Orchestrator queue.
+Task Planner — converts a ProductionPlan into an ordered flat task list.
+Every task carries all fields the task_runner needs — nothing looked up later.
 """
-
 from typing import List, Dict, Any
 from src.core.director.story_parser import ProductionPlan, ShotPlan
 
+
 class TaskPlanner:
-    """Schedules rendering, asset creation, and validation tasks from a ProductionPlan."""
-    
+    """Schedules asset, composition, render, and validation tasks per shot."""
+
     @staticmethod
     def plan_tasks(production_plan: ProductionPlan) -> List[Dict[str, Any]]:
-        """
-        Converts a multi-shot ProductionPlan into a list of tasks.
-        Each task is a structured dictionary processed sequentially by the Orchestrator.
-        """
         tasks = []
         for shot in production_plan.shots:
-            # Task 1: Asset Preparation
+
+            # ── Task 1: Asset resolution ──────────────────────────────────────
             tasks.append({
-                "task_id": f"task_{shot.shot_id}_assets",
-                "shot_id": shot.shot_id,
-                "type": "asset_resolution",
-                "description": f"Resolve/generate assets for shot {shot.shot_id}",
+                "task_id":     f"task_{shot.shot_id}_assets",
+                "shot_id":     shot.shot_id,
+                "scene_id":    shot.scene_id,
+                "type":        "asset_resolution",
+                "description": f"Resolve assets for {shot.shot_id}",
                 "data": {
                     "characters": shot.characters_present,
-                    "objects": shot.objects_present,
-                    "lighting": shot.lighting
+                    "objects":    shot.objects_present,
+                    "lighting":   shot.lighting,
                 }
             })
-            
-            # Task 2: Scene Composition & USD generation
+
+            # ── Task 2: Scene composition ─────────────────────────────────────
+            # Carries ALL metadata the SceneComposer needs — nothing is missing
             tasks.append({
-                "task_id": f"task_{shot.shot_id}_compose",
-                "shot_id": shot.shot_id,
-                "type": "scene_composition",
-                "description": f"Compose USD and JSON scene for shot {shot.shot_id}",
+                "task_id":     f"task_{shot.shot_id}_compose",
+                "shot_id":     shot.shot_id,
+                "scene_id":    shot.scene_id,
+                "type":        "scene_composition",
+                "description": f"Compose scene JSON + USD for {shot.shot_id}",
                 "data": {
-                    "camera_angle": shot.camera_angle,
-                    "characters": shot.characters_present,
-                    "objects": shot.objects_present,
-                    "action": shot.action
+                    "camera_angle":     shot.camera_angle,
+                    "lighting":         shot.lighting,
+                    "duration_seconds": shot.duration_seconds,
+                    "characters":       shot.characters_present,
+                    "objects":          shot.objects_present,
+                    "action":           shot.action,
+                    "description":      shot.description,
+                    "dialogue":         shot.dialogue,
                 }
             })
-            
-            # Task 3: Headless Rendering
+
+            # ── Task 3: Scene rendering ───────────────────────────────────────
             tasks.append({
-                "task_id": f"task_{shot.shot_id}_render",
-                "shot_id": shot.shot_id,
-                "type": "scene_rendering",
-                "description": f"Spawn Headless Godot to render shot {shot.shot_id}",
+                "task_id":     f"task_{shot.shot_id}_render",
+                "shot_id":     shot.shot_id,
+                "scene_id":    shot.scene_id,
+                "type":        "scene_rendering",
+                "description": f"Render frames for {shot.shot_id}",
                 "data": {
-                    "duration": shot.duration_seconds
+                    "duration_seconds": shot.duration_seconds,
+                    "description":      shot.description,
                 }
             })
-            
-            # Task 4: Pipeline Validation
+
+            # ── Task 4: Validation ────────────────────────────────────────────
             tasks.append({
-                "task_id": f"task_{shot.shot_id}_validate",
-                "shot_id": shot.shot_id,
-                "type": "shot_validation",
-                "description": f"Run character, story, style, and physics validators on shot {shot.shot_id}",
-                "data": {
-                    "shot_ref": shot
-                }
+                "task_id":     f"task_{shot.shot_id}_validate",
+                "shot_id":     shot.shot_id,
+                "scene_id":    shot.scene_id,
+                "type":        "shot_validation",
+                "description": f"Validate {shot.shot_id}",
+                "data": {}
             })
-            
+
         return tasks
