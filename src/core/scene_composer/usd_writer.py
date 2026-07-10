@@ -1,69 +1,74 @@
 """
-USD Writer Module
-Generates minimal, compliant OpenUSD scene definitions (.usda files)
-incorporating camera, light, environment, and actor references.
+USD Writer — generates minimal valid .usda scene files.
+Characters input is now a list of dicts (matching scene_composer output).
 """
-
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, List
+
 
 class USDWriter:
-    """Writes compliant USDA ASCII scene files representing the 3D scene structure."""
-    
+    """Writes .usda ASCII scene files for inter-tool scene exchange."""
+
     @staticmethod
     def write_usda_scene(filepath: str, scene_data: Dict[str, Any]) -> str:
-        """
-        Builds a compliant USDA string and writes it to disk.
-        
-        :param filepath: Target path on disk.
-        :param scene_data: Dict containing camera angles, assets, lighting settings.
-        :return: Path to the generated USDA file.
-        """
-        # Minimal compliant .usda format template
-        usda_content = f"""#usda 1.0
-(
-    doc = "AI Production Studio Generated Scene"
-    metersPerUnit = 0.01
-    upAxis = "Z"
-)
+        """Build and write a minimal valid .usda file from scene_data dict."""
+        cam = scene_data.get("camera", {})
+        light = scene_data.get("lighting", {})
 
-def Scope "Environment"
-{{
-    def Mesh "Scenery" (
-        prepend references = @{scene_data.get('environment_path', 'default_env.png')}@
-    )
-    {{
-    }}
-}}
+        usda = f"""#usda 1.0
+(
+    doc = "AI Production Studio — Generated Scene"
+    metersPerUnit = 1.0
+    upAxis = "Y"
+)
 
 def Camera "MainCamera"
 {{
-    double focalLength = 35
-    double focusDistance = 5
-    float3 xformOp:translate = {scene_data.get('camera_pos', '(0, 1.5, 5)')}
+    double focalLength = {cam.get("focal_length", 50.0)}
+    float3 xformOp:translate = ({cam.get("x", 0.0)}, {cam.get("y", 1.7)}, {cam.get("z", 5.0)})
+    float xformOp:rotateX:pitch = {cam.get("pitch", 0.0)}
+    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateX:pitch"]
+}}
+
+def DomeLight "MainLight"
+{{
+    float intensity = {light.get("energy", 1.0)}
+}}
+
+"""
+        # Characters is a list of dicts [{name, x, y, z, mesh_path}, ...]
+        characters: List[Dict] = scene_data.get("characters", [])
+        for char in characters:
+            name      = str(char.get("name", "Character")).replace(" ", "_")
+            mesh_path = str(char.get("mesh_path", ""))
+            x = char.get("x", 0.0)
+            y = char.get("y", 0.0)
+            z = char.get("z", 0.0)
+
+            if mesh_path:
+                usda += f"""def Scope "Character_{name}"
+{{
+    def Mesh "{name}_Mesh" (
+        prepend references = @{mesh_path}@
+    )
+    {{
+        float3 xformOp:translate = ({x}, {y}, {z})
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }}
+}}
+
+"""
+            else:
+                usda += f"""def Sphere "Character_{name}_Placeholder"
+{{
+    float radius = 0.5
+    float3 xformOp:translate = ({x}, {y}, {z})
     uniform token[] xformOpOrder = ["xformOp:translate"]
 }}
 
-def DomeLight "MainDomeLight"
-{{
-    float intensity = {scene_data.get('light_intensity', '1.0')}
-    color3f color = {scene_data.get('light_color', '(1.0, 1.0, 1.0)')}
-}}
 """
-        # Add character nodes
-        for index, (char_name, asset_path) in enumerate(scene_data.get("characters", {}).items()):
-            usda_content += f"""
-def Scope "Character_{char_name}" (
-    prepend references = @{asset_path}@
-)
-{{
-    float3 xformOp:translate = ({index * 1.5}, 0.0, 0.0)
-    uniform token[] xformOpOrder = ["xformOp:translate"]
-}}
-"""
-            
+
         Path(filepath).parent.mkdir(parents=True, exist_ok=True)
         with open(filepath, "w", encoding="utf-8") as f:
-            f.write(usda_content)
-            
+            f.write(usda)
         return filepath
